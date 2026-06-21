@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-type ViewState = "menu" | "checkin" | "equipment" | "meals" | "rooms" | "roomSummary";
+// 擴充 ViewState，加入獨立的 "groupDetail" 畫面
+type ViewState = "menu" | "checkin" | "equipment" | "meals" | "rooms" | "roomSummary" | "groupDetail";
 
 export default function TourDashboardPage() {
   const params = useParams();
@@ -17,7 +18,7 @@ export default function TourDashboardPage() {
   
   const [memberData, setMemberData] = useState<any[]>([]);
   const [roomData, setRoomData] = useState<any[]>([]);
-  const [tourGroups, setTourGroups] = useState<string[]>([]); // 🌟 新增：用來存放這團所有不重複的分組
+  const [tourGroups, setTourGroups] = useState<string[]>([]);
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
 
@@ -29,7 +30,7 @@ export default function TourDashboardPage() {
       const filteredMembers = Array.isArray(allMembers) ? allMembers.filter((m: any) => m.團號 === tourId) : [];
       setMemberData(filteredMembers);
 
-      // 🌟 動態分析這團的所有不重複分組標籤
+      // 分析出這團所有不重複的分組
       const groupsSet = new Set<string>();
       filteredMembers.forEach((m: any) => {
         const gName = m.分組 ? String(m.分組).trim() : "";
@@ -186,6 +187,7 @@ export default function TourDashboardPage() {
           </span>
           <h1 className="text-lg font-black text-emerald-50 mt-1 tracking-wide">
             {view === "menu" && "岳野嚮導工作台"}
+            {view === "groupDetail" && "🥾 團隊分組總覽"}
             {view === "checkin" && "📋 報到與基本資料"}
             {view === "equipment" && "🎒 裝備確認單"}
             {view === "meals" && "🍱 登山口餐點"}
@@ -223,29 +225,18 @@ export default function TourDashboardPage() {
 
       <div className="w-full max-w-md px-4 mt-4">
         
-        {/* ================= 主選單畫面 (image_07cbb4.png 畫面) ================= */}
+        {/* ================= 主選單畫面 (新增獨立分組按鈕) ================= */}
         {view === "menu" && (
           <div className="grid grid-cols-1 gap-4">
             
-            {/* 🌟 新增：頂部登山分組情報標籤板 */}
-            <div className="bg-gradient-to-r from-emerald-900 to-emerald-950 text-white p-4 rounded-2xl shadow-sm border border-emerald-800/60 text-left">
-              <p className="text-[10px] text-emerald-400 font-black tracking-widest uppercase">Mountaineering Groups</p>
-              <h3 className="text-sm font-black text-emerald-100 mt-0.5 mb-2.5">🏔️ 本團現有登山分組</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {tourGroups.length === 0 ? (
-                  <span className="text-xs text-emerald-400 italic font-medium">（後台尚未設定分組資料）</span>
-                ) : (
-                  tourGroups.map((grp, i) => (
-                    <span 
-                      key={i} 
-                      className="text-xs font-black bg-amber-500 text-stone-950 px-3 py-1 rounded-full shadow-2xs border border-amber-600"
-                    >
-                      🥾 {grp}
-                    </span>
-                  ))
-                )}
+            {/* 🌟 1. 獨立的登山分組大按鈕 */}
+            <button onClick={() => setView("groupDetail")} className="flex items-center justify-between bg-gradient-to-r from-emerald-800 to-emerald-900 p-5 rounded-2xl shadow-md border border-emerald-700 text-white active:scale-[0.98] transition-all">
+              <div className="text-left">
+                <h2 className="text-lg font-black text-amber-400">🥾 登山分組看名單</h2>
+                <p className="text-xs text-emerald-200 mt-1">快速切換查看 A組、B組、C組各組成員是誰</p>
               </div>
-            </div>
+              <span className="text-xl text-amber-400 font-bold">➔</span>
+            </button>
 
             <button onClick={() => setView("checkin")} className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-stone-200 active:scale-[0.98] transition-all hover:border-emerald-300">
               <div className="text-left">
@@ -289,7 +280,59 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 1. 報到資料 ================= */}
+        {/* ================= 🌟 新增：2. 獨立的各組名單展開畫面 ================= */}
+        {view === "groupDetail" && (
+          <div className="space-y-6">
+            {tourGroups.length === 0 ? (
+              <div className="bg-white p-8 rounded-2xl text-center text-stone-500 border border-stone-200">
+                後台目前無任何分組建檔資料。
+              </div>
+            ) : (
+              // 跑迴圈：一組一組拆開排列
+              tourGroups.map((groupName) => {
+                // 從全部名單中篩選出屬於「這一組」的隊員
+                const groupMembers = memberData.filter(
+                  (m) => m.分組 && String(m.分組).trim() === groupName
+                );
+
+                return (
+                  <div key={groupName} className="bg-white border-2 border-emerald-800/20 rounded-2xl shadow-sm overflow-hidden">
+                    {/* 各組標題列 */}
+                    <div className="bg-gradient-to-r from-emerald-900 to-emerald-950 text-white px-4 py-3 flex justify-between items-center">
+                      <span className="text-base font-black tracking-wide">⛰️ {groupName} 名單</span>
+                      <span className="text-xs bg-amber-500 text-stone-950 font-bold px-2 py-0.5 rounded-full">
+                        共 {groupMembers.length} 人
+                      </span>
+                    </div>
+
+                    {/* 各組內部的團員細項 */}
+                    <div className="p-1 divide-y divide-stone-100">
+                      {groupMembers.map((member, idx) => (
+                        <div key={idx} className="p-3 flex justify-between items-center bg-white hover:bg-stone-50/50">
+                          <div>
+                            <span className="font-black text-stone-800 text-base">{member.姓名}</span>
+                            <span className="text-xs text-stone-400 font-medium block mt-0.5">📱 {member.手機 || "無聯絡電話"}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className={`text-xs font-bold px-2 py-1 rounded-md border ${
+                              member.報到狀態 === "TRUE" 
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+                                : "bg-stone-50 text-stone-400 border-stone-200"
+                            }`}>
+                              {member.報到狀態 === "TRUE" ? "✅ 已報到" : "⏳ 未報到"}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* ================= 3. 報到與基本資料 ================= */}
         {view === "checkin" && (
           <div className="space-y-4">
             {memberData.map((member, idx) => (
@@ -326,7 +369,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 2. 裝備確認 ================= */}
+        {/* ================= 4. 裝備確認 ================= */}
         {view === "equipment" && (
           <div className="space-y-4">
             {equipmentMembers.length === 0 ? (
@@ -374,7 +417,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 3. 餐點發放 ================= */}
+        {/* ================= 5. 餐點發放 ================= */}
         {view === "meals" && (
           <div className="space-y-4">
             {memberData.map((member, idx) => (
@@ -403,7 +446,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 4. 飯店排房表 ================= */}
+        {/* ================= 6. 飯店排房表 ================= */}
         {view === "rooms" && (
           <div className="space-y-4">
             {roomData.map((room, idx) => {
@@ -462,7 +505,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 5. 總房表畫面 ================= */}
+        {/* ================= 7. 總房表畫面 ================= */}
         {view === "roomSummary" && (
           <div className="space-y-3">
             {roomData.map((room, idx) => {
