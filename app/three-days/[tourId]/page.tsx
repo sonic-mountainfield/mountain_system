@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-// 定義畫面的狀態
-type ViewState = "menu" | "checkin" | "equipment" | "meals" | "rooms";
+// 定義畫面的狀態，新增了 "roomSummary" (總房表)
+type ViewState = "menu" | "checkin" | "equipment" | "meals" | "rooms" | "roomSummary";
 
 export default function TourDashboardPage() {
   const params = useParams();
@@ -40,6 +40,13 @@ export default function TourDashboardPage() {
     if (tourId) fetchData();
   }, [tourId]);
 
+  // 🌟 新增：處理房號輸入的即時更新功能
+  const handleRoomNumberChange = (index: number, newValue: string) => {
+    const newData = [...roomData];
+    newData[index] = { ...newData[index], 實際房號: newValue };
+    setRoomData(newData);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -48,7 +55,6 @@ export default function TourDashboardPage() {
     );
   }
 
-  // 🌟 預先過濾出「有借裝備」的團員
   const equipmentMembers = memberData.filter(
     (m) => m.裝備明細 && m.裝備明細.trim() !== "" && m.裝備明細 !== "無"
   );
@@ -65,6 +71,7 @@ export default function TourDashboardPage() {
             {view === "equipment" && "🎒 裝備確認單"}
             {view === "meals" && "🍱 登山口餐點"}
             {view === "rooms" && "🏨 飯店排房表"}
+            {view === "roomSummary" && "🗝️ 總房表 (發鑰匙用)"}
           </h1>
         </div>
         
@@ -117,6 +124,15 @@ export default function TourDashboardPage() {
                 <p className="text-sm text-slate-500 mt-1">名單、備註、填寫實際房號</p>
               </div>
               <span className="text-2xl text-slate-300">➔</span>
+            </button>
+
+            {/* 🌟 新增：總房表獨立入口 */}
+            <button onClick={() => setView("roomSummary")} className="flex items-center justify-between bg-blue-50 p-6 rounded-2xl shadow-sm border border-blue-200 active:scale-[0.98] transition-all">
+              <div className="text-left">
+                <h2 className="text-xl font-bold text-blue-800">🗝️ 總房表總覽</h2>
+                <p className="text-sm text-blue-600 mt-1">快速查看所有房號與名單 (發鑰匙用)</p>
+              </div>
+              <span className="text-2xl text-blue-300">➔</span>
             </button>
           </div>
         )}
@@ -241,9 +257,45 @@ export default function TourDashboardPage() {
                   <input
                     type="text"
                     placeholder="導遊輸入房號..."
-                    defaultValue={room.實際房號}
+                    value={room.實際房號 || ""}
+                    onChange={(e) => handleRoomNumberChange(idx, e.target.value)}
                     className="flex-1 min-w-0 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 focus:outline-none focus:border-blue-500 bg-white"
                   />
+                </div>
+              </div>
+            ))}
+            
+            {/* 🌟 新增：排房表最下方的捷徑按鈕 */}
+            <button 
+              onClick={() => setView("roomSummary")}
+              className="w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-md active:scale-95 transition-all"
+            >
+              完成登記，查看總房表 ➔
+            </button>
+          </div>
+        )}
+
+        {/* ================= 5. 總房表 (新增的畫面) ================= */}
+        {view === "roomSummary" && (
+          <div className="space-y-3">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 text-sm text-blue-800 font-medium">
+              💡 這裡會即時顯示您剛剛輸入的房號，方便您在櫃檯發放鑰匙。
+            </div>
+            {roomData.map((room, idx) => (
+              <div key={idx} className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                <div className="flex-1">
+                  <div className="text-xs text-slate-500 font-bold mb-1">
+                    {room.入住日期 ? room.入住日期.substring(5) : ""} | {room.飯店名稱}
+                  </div>
+                  <div className="text-base font-bold text-slate-800">
+                    {[room.房客1, room.房客2, room.房客3, room.房客4].filter(Boolean).join(" 、 ")}
+                  </div>
+                </div>
+                <div className="ml-4 pl-4 border-l border-slate-100 flex flex-col items-center justify-center min-w-[70px]">
+                  <span className="text-xs text-slate-400 font-bold mb-0.5">房號</span>
+                  <span className={`text-2xl font-black ${room.實際房號 ? "text-blue-600" : "text-slate-300"}`}>
+                    {room.實際房號 || "未填"}
+                  </span>
                 </div>
               </div>
             ))}
