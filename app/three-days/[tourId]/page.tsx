@@ -49,9 +49,15 @@ export default function TourDashboardPage() {
     setRoomData(newData);
   };
 
-  // 輔助函式：安全地取得並過濾房客名單，確保能正確呈現姓名
+  // 🌟 核心防呆修正：不論欄位有沒有空格（例如：房客1 或 房客 1），都能精準抓到名字
   const getGuestsList = (room: any) => {
-    const guests = [room.房客1, room.房客2, room.房客3, room.房客4];
+    const guests = [
+      room.房客1 || room["房客 1"] || room["房客  1"],
+      room.房客2 || room["房客 2"] || room["房客  2"],
+      room.房客3 || room["房客 3"] || room["房客  3"],
+      room.房客4 || room["房客 4"] || room["房客  4"]
+    ];
+    
     return guests
       .map(g => (g ? String(g).trim() : "")) // 轉為字串並清除前後空白
       .filter(g => g !== "" && g !== "undefined" && g !== "null"); // 過濾無效欄位
@@ -136,6 +142,7 @@ export default function TourDashboardPage() {
               <span className="text-2xl text-slate-300">➔</span>
             </button>
 
+            {/* 總房表入口 */}
             <button onClick={() => setView("roomSummary")} className="flex items-center justify-between bg-blue-50 p-6 rounded-2xl shadow-sm border border-blue-200 active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-xl font-bold text-blue-800">🗝️ 總房表總覽</h2>
@@ -255,7 +262,7 @@ export default function TourDashboardPage() {
                   <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-3">
                     <p className="text-xs text-slate-400 font-bold mb-1">入住名單</p>
                     <p className="text-base font-bold text-slate-700">
-                      {guests.length > 0 ? guests.join(" 、 ") : <span className="text-red-400 font-normal text-sm">（未排定房客）</span>}
+                      {guests.length > 0 ? guests.join(" 、 ") : <span className="text-slate-400 font-normal text-sm">未排定房客</span>}
                     </p>
                   </div>
                   {room.備註 && (
@@ -277,6 +284,7 @@ export default function TourDashboardPage() {
               );
             })}
             
+            {/* 排房表最下方的捷徑按鈕 */}
             <button 
               onClick={() => setView("roomSummary")}
               className="w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-md active:scale-95 transition-all"
