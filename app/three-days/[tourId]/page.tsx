@@ -20,7 +20,6 @@ export default function TourDashboardPage() {
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
 
-  // 1. 從雲端讀取最新資料
   async function fetchData() {
     try {
       setLoading(true);
@@ -35,7 +34,7 @@ export default function TourDashboardPage() {
       setRoomData(filteredRooms);
     } catch (error) {
       console.error("資料讀取失敗:", error);
-    } finally {
+    } authorinally {
       setLoading(false);
     }
   }
@@ -44,12 +43,9 @@ export default function TourDashboardPage() {
     if (tourId) fetchData();
   }, [tourId]);
 
-  // 🌟 核心存檔機制 A：更新「3日出團總表」（報到、餐點、裝備打勾）
-  // 利用「姓名」作為搜尋條件定位，點擊立刻觸發
   const handleMemberStatusChange = async (index: number, field: string, isChecked: boolean) => {
     setSyncStatus("saving");
     
-    // 1. 先即時更新網頁畫面狀態
     const updatedMembers = [...memberData];
     const valueStr = isChecked ? "TRUE" : "FALSE";
     updatedMembers[index] = { ...updatedMembers[index], [field]: valueStr };
@@ -57,7 +53,6 @@ export default function TourDashboardPage() {
 
     const memberName = updatedMembers[index].姓名;
 
-    // 2. 打 API 把該欄位的 TRUE/FALSE 傳回 Google 試算表
     try {
       const response = await fetch(`${SHEETDB_URL}/姓名/${encodeURIComponent(memberName)}?sheet=3日出團總表`, {
         method: "PUT",
@@ -79,14 +74,12 @@ export default function TourDashboardPage() {
     }
   };
 
-  // 🌟 核心存檔機制 B：當導遊在房號輸入框打字時，即時更新網頁狀態
   const handleRoomNumberChange = (index: number, newValue: string) => {
     const newData = [...roomData];
     newData[index] = { ...newData[index], 實際房號: newValue };
     setRoomData(newData);
   };
 
-  // 🌟 核心存檔機制 C：單筆儲存房號回「3日排房表」
   const saveSingleRoomNumber = async (index: number) => {
     const room = roomData[index];
     const primaryGuest = room["房客 1"] || room.房客1;
@@ -121,7 +114,6 @@ export default function TourDashboardPage() {
     }
   };
 
-  // 🌟 核心存檔機制 D：大批儲存房號並跳轉總房表
   const handleSaveAllAndSummary = async () => {
     setLoading(true);
     setSyncStatus("saving");
@@ -138,7 +130,7 @@ export default function TourDashboardPage() {
         }
       }
       setSyncStatus("success");
-      await fetchData(); // 重新讀取確保資料是最新的
+      await fetchData();
       setView("roomSummary");
     } catch (error) {
       console.error("批次儲存失敗:", error);
@@ -149,7 +141,6 @@ export default function TourDashboardPage() {
     }
   };
 
-  // 輔助防呆函式：相容空格抓房客名字
   const getGuestsList = (room: any) => {
     const guests = [
       room.房客1 || room["房客 1"] || room["房客  1"],
@@ -201,7 +192,7 @@ export default function TourDashboardPage() {
         )}
       </div>
 
-      {/* 🌟 頂部即時同步狀態燈條 */}
+      {/* 同步狀態燈條 */}
       {view !== "menu" && (
         <div className="w-full max-w-md px-4 mt-3">
           <div className={`text-center py-1.5 rounded-xl text-xs font-bold shadow-sm transition-all ${
@@ -264,7 +255,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 1. 報到資料 (點擊即時同步) ================= */}
+        {/* ================= 1. 報到資料 ================= */}
         {view === "checkin" && (
           <div className="space-y-4">
             {memberData.map((member, idx) => (
@@ -301,14 +292,13 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 2. 裝備確認 (點擊即時同步) ================= */}
+        {/* ================= 2. 裝備確認 ================= */}
         {view === "equipment" && (
           <div className="space-y-4">
             {equipmentMembers.length === 0 ? (
               <p className="text-center text-slate-400 py-10 font-bold">🎉 此團無人需要租借裝備</p>
             ) : (
               equipmentMembers.map((member, idx) => {
-                // 在過濾後的陣列中，需要找回它在原始 memberData 中的真正 index
                 const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
                 return (
                   <div key={idx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
@@ -347,7 +337,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 3. 餐點發放 (點擊即時同步) ================= */}
+        {/* ================= 3. 餐點發放 ================= */}
         {view === "meals" && (
           <div className="space-y-4">
             {memberData.map((member, idx) => (
@@ -435,7 +425,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 5. 總房表畫面 ================= */}
+        {/* ================= 5. 總房表表畫面 ================= */}
         {view === "roomSummary" && (
           <div className="space-y-3">
             {roomData.map((room, idx) => {
