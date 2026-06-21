@@ -34,7 +34,7 @@ export default function TourDashboardPage() {
       setRoomData(filteredRooms);
     } catch (error) {
       console.error("資料讀取失敗:", error);
-    } authorinally {
+    } finally {
       setLoading(false);
     }
   }
