@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-// 定義畫面的狀態，新增了 "roomSummary" (總房表)
+// 定義畫面的狀態，包含 "roomSummary" (總房表)
 type ViewState = "menu" | "checkin" | "equipment" | "meals" | "rooms" | "roomSummary";
 
 export default function TourDashboardPage() {
@@ -22,11 +22,13 @@ export default function TourDashboardPage() {
     async function fetchData() {
       try {
         setLoading(true);
+        // 1. 讀取 3日出團總表
         const resMembers = await fetch(`${SHEETDB_URL}?sheet=3日出團總表`, { cache: "no-store" });
         const allMembers = await resMembers.json();
         const filteredMembers = Array.isArray(allMembers) ? allMembers.filter((m: any) => m.團號 === tourId) : [];
         setMemberData(filteredMembers);
 
+        // 2. 讀取 3日排房表
         const resRooms = await fetch(`${SHEETDB_URL}?sheet=3日排房表`, { cache: "no-store" });
         const allRooms = await resRooms.json();
         const filteredRooms = Array.isArray(allRooms) ? allRooms.filter((r: any) => r.團號 === tourId) : [];
@@ -40,11 +42,19 @@ export default function TourDashboardPage() {
     if (tourId) fetchData();
   }, [tourId]);
 
-  // 🌟 新增：處理房號輸入的即時更新功能
+  // 處理房號輸入的即時更新功能
   const handleRoomNumberChange = (index: number, newValue: string) => {
     const newData = [...roomData];
     newData[index] = { ...newData[index], 實際房號: newValue };
     setRoomData(newData);
+  };
+
+  // 輔助函式：安全地取得並過濾房客名單，確保能正確呈現姓名
+  const getGuestsList = (room: any) => {
+    const guests = [room.房客1, room.房客2, room.房客3, room.房客4];
+    return guests
+      .map(g => (g ? String(g).trim() : "")) // 轉為字串並清除前後空白
+      .filter(g => g !== "" && g !== "undefined" && g !== "null"); // 過濾無效欄位
   };
 
   if (loading) {
@@ -126,7 +136,6 @@ export default function TourDashboardPage() {
               <span className="text-2xl text-slate-300">➔</span>
             </button>
 
-            {/* 🌟 新增：總房表獨立入口 */}
             <button onClick={() => setView("roomSummary")} className="flex items-center justify-between bg-blue-50 p-6 rounded-2xl shadow-sm border border-blue-200 active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-xl font-bold text-blue-800">🗝️ 總房表總覽</h2>
@@ -228,44 +237,46 @@ export default function TourDashboardPage() {
         {/* ================= 4. 飯店排房畫面 ================= */}
         {view === "rooms" && (
           <div className="space-y-4">
-            {roomData.map((room, idx) => (
-              <div key={idx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
-                <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-3">
-                  <div>
-                    <span className="text-xs bg-slate-100 text-slate-600 font-bold px-2 py-1 rounded-md">
-                      入住：{room.入住日期 ? room.入住日期.substring(5) : "未定"}
+            {roomData.map((room, idx) => {
+              const guests = getGuestsList(room);
+              return (
+                <div key={idx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-3">
+                    <div>
+                      <span className="text-xs bg-slate-100 text-slate-600 font-bold px-2 py-1 rounded-md">
+                        入住：{room.入住日期 ? room.入住日期.substring(5) : "未定"}
+                      </span>
+                      <h3 className="text-lg font-bold text-slate-800 mt-2">{room.飯店名稱}</h3>
+                    </div>
+                    <span className="text-sm font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-lg">
+                      {room.房型}
                     </span>
-                    <h3 className="text-lg font-bold text-slate-800 mt-2">{room.飯店名稱}</h3>
                   </div>
-                  <span className="text-sm font-black text-indigo-600 bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-lg">
-                    {room.房型}
-                  </span>
-                </div>
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-3">
-                  <p className="text-xs text-slate-400 font-bold mb-1">入住名單</p>
-                  <p className="text-base font-bold text-slate-700">
-                    {[room.房客1, room.房客2, room.房客3, room.房客4].filter(Boolean).join(" 、 ")}
-                  </p>
-                </div>
-                {room.備註 && (
-                  <div className="text-sm bg-amber-50 border border-amber-100 text-amber-800 p-3 rounded-xl font-medium mb-3">
-                    💬 {room.備註}
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-3">
+                    <p className="text-xs text-slate-400 font-bold mb-1">入住名單</p>
+                    <p className="text-base font-bold text-slate-700">
+                      {guests.length > 0 ? guests.join(" 、 ") : <span className="text-red-400 font-normal text-sm">（未排定房客）</span>}
+                    </p>
                   </div>
-                )}
-                <div className="flex items-center gap-3">
-                  <span className="text-sm font-bold text-slate-700 whitespace-nowrap">登記房號：</span>
-                  <input
-                    type="text"
-                    placeholder="導遊輸入房號..."
-                    value={room.實際房號 || ""}
-                    onChange={(e) => handleRoomNumberChange(idx, e.target.value)}
-                    className="flex-1 min-w-0 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 focus:outline-none focus:border-blue-500 bg-white"
-                  />
+                  {room.備註 && (
+                    <div className="text-sm bg-amber-50 border border-amber-100 text-amber-800 p-3 rounded-xl font-medium mb-3">
+                      💬 {room.備註}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-slate-700 whitespace-nowrap">登記房號：</span>
+                    <input
+                      type="text"
+                      placeholder="導遊輸入房號..."
+                      value={room.實際房號 || ""}
+                      onChange={(e) => handleRoomNumberChange(idx, e.target.value)}
+                      className="flex-1 min-w-0 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 focus:outline-none focus:border-blue-500 bg-white"
+                    />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             
-            {/* 🌟 新增：排房表最下方的捷徑按鈕 */}
             <button 
               onClick={() => setView("roomSummary")}
               className="w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-md active:scale-95 transition-all"
@@ -275,30 +286,33 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 5. 總房表 (新增的畫面) ================= */}
+        {/* ================= 5. 總房表畫面 ================= */}
         {view === "roomSummary" && (
           <div className="space-y-3">
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 text-sm text-blue-800 font-medium">
               💡 這裡會即時顯示您剛剛輸入的房號，方便您在櫃檯發放鑰匙。
             </div>
-            {roomData.map((room, idx) => (
-              <div key={idx} className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                <div className="flex-1">
-                  <div className="text-xs text-slate-500 font-bold mb-1">
-                    {room.入住日期 ? room.入住日期.substring(5) : ""} | {room.飯店名稱}
+            {roomData.map((room, idx) => {
+              const guests = getGuestsList(room);
+              return (
+                <div key={idx} className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+                  <div className="flex-1">
+                    <div className="text-xs text-slate-500 font-bold mb-1">
+                      {room.入住日期 ? room.入住日期.substring(5) : ""} | {room.飯店名稱}
+                    </div>
+                    <div className="text-base font-bold text-slate-800">
+                      {guests.length > 0 ? guests.join(" 、 ") : <span className="text-slate-400 font-normal text-sm">未排定房客</span>}
+                    </div>
                   </div>
-                  <div className="text-base font-bold text-slate-800">
-                    {[room.房客1, room.房客2, room.房客3, room.房客4].filter(Boolean).join(" 、 ")}
+                  <div className="ml-4 pl-4 border-l border-slate-100 flex flex-col items-center justify-center min-w-[70px]">
+                    <span className="text-xs text-slate-400 font-bold mb-0.5">房號</span>
+                    <span className={`text-2xl font-black ${room.實際房號 ? "text-blue-600" : "text-slate-300"}`}>
+                      {room.實際房號 || "未填"}
+                    </span>
                   </div>
                 </div>
-                <div className="ml-4 pl-4 border-l border-slate-100 flex flex-col items-center justify-center min-w-[70px]">
-                  <span className="text-xs text-slate-400 font-bold mb-0.5">房號</span>
-                  <span className={`text-2xl font-black ${room.實際房號 ? "text-blue-600" : "text-slate-300"}`}>
-                    {room.實際房號 || "未填"}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
