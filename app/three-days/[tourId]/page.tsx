@@ -17,6 +17,7 @@ export default function TourDashboardPage() {
   
   const [memberData, setMemberData] = useState<any[]>([]);
   const [roomData, setRoomData] = useState<any[]>([]);
+  const [tourGroups, setTourGroups] = useState<string[]>([]); // 🌟 新增：用來存放這團所有不重複的分組
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
 
@@ -27,6 +28,16 @@ export default function TourDashboardPage() {
       const allMembers = await resMembers.json();
       const filteredMembers = Array.isArray(allMembers) ? allMembers.filter((m: any) => m.團號 === tourId) : [];
       setMemberData(filteredMembers);
+
+      // 🌟 動態分析這團的所有不重複分組標籤
+      const groupsSet = new Set<string>();
+      filteredMembers.forEach((m: any) => {
+        const gName = m.分組 ? String(m.分組).trim() : "";
+        if (gName && gName !== "無" && gName !== "undefined" && gName !== "null") {
+          groupsSet.add(gName);
+        }
+      });
+      setTourGroups(Array.from(groupsSet).sort());
 
       const resRooms = await fetch(`${SHEETDB_URL}?sheet=3日排房表`, { cache: "no-store" });
       const allRooms = await resRooms.json();
@@ -162,12 +173,12 @@ export default function TourDashboardPage() {
   }
 
   const equipmentMembers = memberData.filter(
-    (m) => m.裝裝備明細 || (m.裝備明細 && m.裝備明細.trim() !== "" && m.裝備明細 !== "無")
+    (m) => m.裝備明細 && m.裝備明細.trim() !== "" && m.裝備明細 !== "無"
   );
 
   return (
     <main className="min-h-screen bg-stone-100 flex flex-col items-center pb-12">
-      {/* 🌲 頂部山林墨綠導覽列 */}
+      {/* 頂部山林墨綠導覽列 */}
       <div className="w-full bg-emerald-950 text-white py-4 px-6 sticky top-0 z-10 flex items-center justify-between shadow-md border-b border-emerald-900">
         <div>
           <span className="text-[10px] font-black bg-amber-500 text-emerald-950 px-2 py-0.5 rounded-full uppercase tracking-wider">
@@ -194,7 +205,7 @@ export default function TourDashboardPage() {
         )}
       </div>
 
-      {/* 森林系同步狀態提示條 */}
+      {/* 同步狀態提示條 */}
       {view !== "menu" && (
         <div className="w-full max-w-md px-4 mt-3">
           <div className={`text-center py-1.5 rounded-xl text-xs font-bold shadow-sm border transition-all ${
@@ -212,9 +223,30 @@ export default function TourDashboardPage() {
 
       <div className="w-full max-w-md px-4 mt-4">
         
-        {/* ================= 🌲 主選單大按鈕大改裝 ================= */}
+        {/* ================= 主選單畫面 (image_07cbb4.png 畫面) ================= */}
         {view === "menu" && (
           <div className="grid grid-cols-1 gap-4">
+            
+            {/* 🌟 新增：頂部登山分組情報標籤板 */}
+            <div className="bg-gradient-to-r from-emerald-900 to-emerald-950 text-white p-4 rounded-2xl shadow-sm border border-emerald-800/60 text-left">
+              <p className="text-[10px] text-emerald-400 font-black tracking-widest uppercase">Mountaineering Groups</p>
+              <h3 className="text-sm font-black text-emerald-100 mt-0.5 mb-2.5">🏔️ 本團現有登山分組</h3>
+              <div className="flex flex-wrap gap-1.5">
+                {tourGroups.length === 0 ? (
+                  <span className="text-xs text-emerald-400 italic font-medium">（後台尚未設定分組資料）</span>
+                ) : (
+                  tourGroups.map((grp, i) => (
+                    <span 
+                      key={i} 
+                      className="text-xs font-black bg-amber-500 text-stone-950 px-3 py-1 rounded-full shadow-2xs border border-amber-600"
+                    >
+                      🥾 {grp}
+                    </span>
+                  ))
+                )}
+              </div>
+            </div>
+
             <button onClick={() => setView("checkin")} className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-stone-200 active:scale-[0.98] transition-all hover:border-emerald-300">
               <div className="text-left">
                 <h2 className="text-lg font-black text-stone-800">📋 報到與基本資料</h2>
@@ -257,7 +289,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 1. 報到資料 (暖綠系) ================= */}
+        {/* ================= 1. 報到資料 ================= */}
         {view === "checkin" && (
           <div className="space-y-4">
             {memberData.map((member, idx) => (
@@ -270,7 +302,7 @@ export default function TourDashboardPage() {
                   <span className="bg-stone-100 text-stone-600 text-xs px-2.5 py-1 rounded-lg font-bold border border-stone-200">{member.分組 || "未編組"}</span>
                 </div>
                 {member.病史 && (
-                  <div className="bg-orange-50 border border-orange-200 text-orange-800 text-xs p-3 rounded-xl font-bold mb-3">
+                  <div className="bg-red-50 border border-red-100 text-red-700 text-xs p-3 rounded-xl font-bold mb-3">
                     ⚠️ 特殊狀況：{member.病史}
                   </div>
                 )}
@@ -294,7 +326,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 2. 裝備確認 (針葉綠) ================= */}
+        {/* ================= 2. 裝備確認 ================= */}
         {view === "equipment" && (
           <div className="space-y-4">
             {equipmentMembers.length === 0 ? (
@@ -342,7 +374,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 3. 餐點發放 (落葉橘) ================= */}
+        {/* ================= 3. 餐點發放 ================= */}
         {view === "meals" && (
           <div className="space-y-4">
             {memberData.map((member, idx) => (
@@ -371,7 +403,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 4. 飯店排房表 (大地岩石灰) ================= */}
+        {/* ================= 4. 飯店排房表 ================= */}
         {view === "rooms" && (
           <div className="space-y-4">
             {roomData.map((room, idx) => {
@@ -430,7 +462,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 5. 總房表畫面 (極簡清爽對照版) ================= */}
+        {/* ================= 5. 總房表畫面 ================= */}
         {view === "roomSummary" && (
           <div className="space-y-3">
             {roomData.map((room, idx) => {
@@ -442,7 +474,7 @@ export default function TourDashboardPage() {
                       {room.入住日期 ? room.入住日期.substring(5) : ""} | {room.飯店名稱}
                     </div>
                     <div className="text-sm font-black text-stone-800">
-                      {guests.length > 0 ? guests.join(" 、 ") : <span className="text-stone-400 font-normal text-xs">未排定房客</span>}
+                      {guests.length > 0 ? guests.join(" 、 ") : <span className="text-slate-400 font-normal text-xs">未排定房客</span>}
                     </div>
                   </div>
                   <div className="ml-4 pl-4 border-l border-stone-200 flex flex-col items-center justify-center min-w-[70px]">
