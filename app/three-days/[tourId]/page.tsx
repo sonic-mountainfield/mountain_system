@@ -11,7 +11,6 @@ export default function TourDashboardPage() {
   const params = useParams();
   const tourId = params.tourId as string;
 
-  // 控制目前顯示哪個畫面，預設為 "menu" (主選單)
   const [view, setView] = useState<ViewState>("menu");
   const [loading, setLoading] = useState(true);
   const [memberData, setMemberData] = useState<any[]>([]);
@@ -49,9 +48,14 @@ export default function TourDashboardPage() {
     );
   }
 
+  // 🌟 預先過濾出「有借裝備」的團員
+  const equipmentMembers = memberData.filter(
+    (m) => m.裝備明細 && m.裝備明細.trim() !== "" && m.裝備明細 !== "無"
+  );
+
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col items-center pb-12">
-      {/* 頂部導覽列 (動態變化) */}
+      {/* 頂部導覽列 */}
       <div className="w-full bg-white border-b border-slate-200 py-4 px-6 sticky top-0 z-10 flex items-center justify-between shadow-sm">
         <div>
           <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">團號 {tourId}</span>
@@ -152,28 +156,32 @@ export default function TourDashboardPage() {
         {/* ================= 2. 裝備確認畫面 ================= */}
         {view === "equipment" && (
           <div className="space-y-4">
-            {memberData.map((member, idx) => (
-              <div key={idx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
-                <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-3">
-                  <h3 className="text-lg font-bold text-slate-800">{member.姓名}</h3>
-                  <span className="text-xs font-bold text-slate-500">{member.分組 || "未編組"}</span>
-                </div>
-                <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3">
-                  <p className="text-xs text-emerald-600 font-bold mb-1">🎒 裝備明細</p>
-                  <p className="text-sm font-bold text-slate-700 mb-3">{member.裝備明細 || "無租借裝備"}</p>
-                  <div className="flex gap-2">
-                    <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2 rounded-lg border border-emerald-100 shadow-sm">
-                      <input type="checkbox" className="w-5 h-5 rounded" defaultChecked={member.裝備借出 === "TRUE"} />
-                      <span className="font-bold text-emerald-800 text-sm">已借出</span>
-                    </label>
-                    <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2 rounded-lg border border-emerald-100 shadow-sm">
-                      <input type="checkbox" className="w-5 h-5 rounded" defaultChecked={member.裝備歸還 === "TRUE"} />
-                      <span className="font-bold text-emerald-800 text-sm">已歸還</span>
-                    </label>
+            {equipmentMembers.length === 0 ? (
+              <p className="text-center text-slate-400 py-10 font-bold">🎉 此團無人需要租借裝備</p>
+            ) : (
+              equipmentMembers.map((member, idx) => (
+                <div key={idx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-3">
+                    <h3 className="text-lg font-bold text-slate-800">{member.姓名}</h3>
+                    <span className="text-xs font-bold text-slate-500">{member.分組 || "未編組"}</span>
+                  </div>
+                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3">
+                    <p className="text-xs text-emerald-600 font-bold mb-1">🎒 裝備明細</p>
+                    <p className="text-sm font-bold text-slate-700 mb-3">{member.裝備明細}</p>
+                    <div className="flex gap-2">
+                      <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2 rounded-lg border border-emerald-100 shadow-sm">
+                        <input type="checkbox" className="w-5 h-5 rounded text-emerald-600" defaultChecked={member.裝備借出 === "TRUE"} />
+                        <span className="font-bold text-emerald-800 text-sm">已借出</span>
+                      </label>
+                      <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2 rounded-lg border border-emerald-100 shadow-sm">
+                        <input type="checkbox" className="w-5 h-5 rounded text-emerald-600" defaultChecked={member.裝備歸還 === "TRUE"} />
+                        <span className="font-bold text-emerald-800 text-sm">已歸還</span>
+                      </label>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         )}
 
@@ -192,7 +200,7 @@ export default function TourDashboardPage() {
                     <p className="text-sm font-bold text-slate-700">{member.五合目餐點 || "無"}</p>
                   </div>
                   <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-orange-100 shadow-sm">
-                    <input type="checkbox" className="w-5 h-5 rounded" defaultChecked={member.餐點領取 === "TRUE"} />
+                    <input type="checkbox" className="w-5 h-5 rounded text-orange-600" defaultChecked={member.餐點領取 === "TRUE"} />
                     <span className="font-bold text-orange-800 text-sm">已領取</span>
                   </label>
                 </div>
