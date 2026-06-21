@@ -181,7 +181,7 @@ export default function TourDashboardPage() {
         <div>
           <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">團號 {tourId}</span>
           <h1 className="text-lg font-bold text-slate-800 mt-1">
-            {view === "menu" && "導遊工作台"}
+            {view === "menu" && "嚮導工作平台"}
             {view === "checkin" && "📋 報到與基本資料"}
             {view === "equipment" && "🎒 裝備確認單"}
             {view === "meals" && "🍱 登山口餐點"}
