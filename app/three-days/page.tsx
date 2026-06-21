@@ -54,7 +54,8 @@ export default function ThreeDaysTourPage() {
         }
       } catch (error) {
         console.error("讀取專屬出團資料失敗:", error);
-      } authorinally { // 💡 這邊在先前的修復中已在背景替換為相容編譯，保留原生架構
+      } finally {
+        // 🌟 修正：這裡換回正式的 finally 關鍵字，排除編譯錯誤！
         setLoading(false);
       }
     }
@@ -62,7 +63,6 @@ export default function ThreeDaysTourPage() {
     fetchAllTours();
   }, []);
 
-  // 補足編譯容錯
   if (loading) {
     return (
       <div className="min-h-screen bg-sky-950 flex flex-col items-center justify-center">
@@ -74,11 +74,11 @@ export default function ThreeDaysTourPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 via-slate-100 to-sky-100/60 flex flex-col items-center py-10 px-6 relative overflow-hidden">
-      {/* 背景隱約的巨浪波紋裝飾 */}
+      {/* 背景隱約的裝飾 */}
       <div className="absolute -top-20 -left-20 text-[12rem] opacity-5 select-none pointer-events-none">⚓</div>
       <div className="absolute -bottom-20 -right-20 text-[12rem] opacity-5 select-none pointer-events-none">🌊</div>
       
-      {/* 🌊 大海系極緻深藍頂欄 */}
+      {/* 大海系深藍頂欄 */}
       <div className="w-full max-w-md mb-6 bg-gradient-to-r from-sky-950 to-slate-900 p-5 rounded-3xl shadow-xl shadow-sky-950/20 border border-sky-900 text-white flex justify-between items-center">
         <div>
           <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase">Yuenor Expedition</p>
@@ -114,8 +114,8 @@ export default function ThreeDaysTourPage() {
                 href={`/three-days/${tour.tourId}`}
                 className={`bg-white p-5 rounded-3xl shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all active:scale-[0.98] flex justify-between items-center group border-2 ${
                   isMyTour 
-                    ? "border-sky-600/40 bg-gradient-to-br from-white to-sky-50/20" // 主場負責團：亮眼天藍框
-                    : "border-slate-200/80" // 他人負責團：清透淺灰框
+                    ? "border-sky-600/40 bg-gradient-to-br from-white to-sky-50/20" 
+                    : "border-slate-200/80" 
                 }`}
               >
                 <div className="flex-1 pr-2">
@@ -137,7 +137,7 @@ export default function ThreeDaysTourPage() {
                     <span>📅</span> 出發航程：<span className="text-slate-700">{tour.date}</span>
                   </p>
                   
-                  {/* 🌊 大海膠囊風 嚮導標籤 */}
+                  {/* 大海膠囊風 嚮導標籤 */}
                   <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap gap-1.5 items-center">
                     <span className="text-[10px] font-black text-slate-400 tracking-wider mr-1">隨船夥伴:</span>
                     {tour.guides.length === 0 ? (
@@ -148,8 +148,8 @@ export default function ThreeDaysTourPage() {
                           key={i} 
                           className={`text-xs font-black px-3 py-1 rounded-full border shadow-2xs transition-colors ${
                             guide === guideName 
-                              ? "bg-sky-800 text-white border-sky-900" // 自己是深沉沉穩的湛藍色
-                              : "bg-slate-50 text-slate-600 border-slate-200/80 group-hover:bg-sky-50/50" // 夥伴是清爽白沙灰
+                              ? "bg-sky-800 text-white border-sky-900" 
+                              : "bg-slate-50 text-slate-600 border-slate-200/80 group-hover:bg-sky-50/50" 
                           }`}
                         >
                           {guide}
