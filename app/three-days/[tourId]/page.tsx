@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-// 定義畫面的狀態，包含 "roomSummary" (總房表)
 type ViewState = "menu" | "checkin" | "equipment" | "meals" | "rooms" | "roomSummary";
 
 export default function TourDashboardPage() {
@@ -13,43 +12,144 @@ export default function TourDashboardPage() {
 
   const [view, setView] = useState<ViewState>("menu");
   const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [savingIdx, setSavingIdx] = useState<number | null>(null);
+  
   const [memberData, setMemberData] = useState<any[]>([]);
   const [roomData, setRoomData] = useState<any[]>([]);
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true);
-        // 1. 讀取 3日出團總表
-        const resMembers = await fetch(`${SHEETDB_URL}?sheet=3日出團總表`, { cache: "no-store" });
-        const allMembers = await resMembers.json();
-        const filteredMembers = Array.isArray(allMembers) ? allMembers.filter((m: any) => m.團號 === tourId) : [];
-        setMemberData(filteredMembers);
+  // 1. 從雲端讀取最新資料
+  async function fetchData() {
+    try {
+      setLoading(true);
+      const resMembers = await fetch(`${SHEETDB_URL}?sheet=3日出團總表`, { cache: "no-store" });
+      const allMembers = await resMembers.json();
+      const filteredMembers = Array.isArray(allMembers) ? allMembers.filter((m: any) => m.團號 === tourId) : [];
+      setMemberData(filteredMembers);
 
-        // 2. 讀取 3日排房表
-        const resRooms = await fetch(`${SHEETDB_URL}?sheet=3日排房表`, { cache: "no-store" });
-        const allRooms = await resRooms.json();
-        const filteredRooms = Array.isArray(allRooms) ? allRooms.filter((r: any) => r.團號 === tourId) : [];
-        setRoomData(filteredRooms);
-      } catch (error) {
-        console.error("資料讀取失敗:", error);
-      } finally {
-        setLoading(false);
-      }
+      const resRooms = await fetch(`${SHEETDB_URL}?sheet=3日排房表`, { cache: "no-store" });
+      const allRooms = await resRooms.json();
+      const filteredRooms = Array.isArray(allRooms) ? allRooms.filter((r: any) => r.團號 === tourId) : [];
+      setRoomData(filteredRooms);
+    } catch (error) {
+      console.error("資料讀取失敗:", error);
+    } finally {
+      setLoading(false);
     }
+  }
+
+  useEffect(() => {
     if (tourId) fetchData();
   }, [tourId]);
 
-  // 處理房號輸入的即時更新功能
+  // 🌟 核心存檔機制 A：更新「3日出團總表」（報到、餐點、裝備打勾）
+  // 利用「姓名」作為搜尋條件定位，點擊立刻觸發
+  const handleMemberStatusChange = async (index: number, field: string, isChecked: boolean) => {
+    setSyncStatus("saving");
+    
+    // 1. 先即時更新網頁畫面狀態
+    const updatedMembers = [...memberData];
+    const valueStr = isChecked ? "TRUE" : "FALSE";
+    updatedMembers[index] = { ...updatedMembers[index], [field]: valueStr };
+    setMemberData(updatedMembers);
+
+    const memberName = updatedMembers[index].姓名;
+
+    // 2. 打 API 把該欄位的 TRUE/FALSE 傳回 Google 試算表
+    try {
+      const response = await fetch(`${SHEETDB_URL}/姓名/${encodeURIComponent(memberName)}?sheet=3日出團總表`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: { [field]: valueStr }
+        })
+      });
+
+      if (response.ok) {
+        setSyncStatus("success");
+      } else {
+        setSyncStatus("error");
+        alert("雲端同步失敗，請確認網路！");
+      }
+    } catch (error) {
+      console.error("更新成員狀態出錯:", error);
+      setSyncStatus("error");
+    }
+  };
+
+  // 🌟 核心存檔機制 B：當導遊在房號輸入框打字時，即時更新網頁狀態
   const handleRoomNumberChange = (index: number, newValue: string) => {
     const newData = [...roomData];
     newData[index] = { ...newData[index], 實際房號: newValue };
     setRoomData(newData);
   };
 
-  // 🌟 核心防呆修正：不論欄位有沒有空格（例如：房客1 或 房客 1），都能精準抓到名字
+  // 🌟 核心存檔機制 C：單筆儲存房號回「3日排房表」
+  const saveSingleRoomNumber = async (index: number) => {
+    const room = roomData[index];
+    const primaryGuest = room["房客 1"] || room.房客1;
+    
+    if (!primaryGuest) {
+      alert("此房間沒有主要房客（房客 1），無法定位儲存！");
+      return;
+    }
+
+    try {
+      setSavingIdx(index);
+      setSyncStatus("saving");
+      const response = await fetch(`${SHEETDB_URL}/房客 1/${encodeURIComponent(primaryGuest)}?sheet=3日排房表`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: { 實際房號: room.實際房號 || "" }
+        })
+      });
+
+      if (response.ok) {
+        setSyncStatus("success");
+      } else {
+        setSyncStatus("error");
+        alert("儲存房號失敗！");
+      }
+    } catch (error) {
+      console.error("更新房號出錯:", error);
+      setSyncStatus("error");
+    } finally {
+      setSavingIdx(null);
+    }
+  };
+
+  // 🌟 核心存檔機制 D：大批儲存房號並跳轉總房表
+  const handleSaveAllAndSummary = async () => {
+    setLoading(true);
+    setSyncStatus("saving");
+    try {
+      for (let i = 0; i < roomData.length; i++) {
+        const room = roomData[i];
+        const primaryGuest = room["房客 1"] || room.房客1;
+        if (primaryGuest) {
+          await fetch(`${SHEETDB_URL}/房客 1/${encodeURIComponent(primaryGuest)}?sheet=3日排房表`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data: { 實際房號: room.實際房號 || "" } })
+          });
+        }
+      }
+      setSyncStatus("success");
+      await fetchData(); // 重新讀取確保資料是最新的
+      setView("roomSummary");
+    } catch (error) {
+      console.error("批次儲存失敗:", error);
+      setSyncStatus("error");
+      setView("roomSummary");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 輔助防呆函式：相容空格抓房客名字
   const getGuestsList = (room: any) => {
     const guests = [
       room.房客1 || room["房客 1"] || room["房客  1"],
@@ -57,16 +157,15 @@ export default function TourDashboardPage() {
       room.房客3 || room["房客 3"] || room["房客  3"],
       room.房客4 || room["房客 4"] || room["房客  4"]
     ];
-    
     return guests
-      .map(g => (g ? String(g).trim() : "")) // 轉為字串並清除前後空白
-      .filter(g => g !== "" && g !== "undefined" && g !== "null"); // 過濾無效欄位
+      .map(g => (g ? String(g).trim() : ""))
+      .filter(g => g !== "" && g !== "undefined" && g !== "null");
   };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <p className="text-slate-500 font-bold animate-pulse">⏳ 資料載入中...</p>
+        <p className="text-slate-500 font-bold animate-pulse">⏳ 資料載入/雲端同步中...</p>
       </div>
     );
   }
@@ -96,16 +195,29 @@ export default function TourDashboardPage() {
             返回列表
           </Link>
         ) : (
-          <button 
-            onClick={() => setView("menu")} 
-            className="text-white text-sm font-bold bg-slate-800 px-4 py-2 rounded-xl active:scale-95 transition-all"
-          >
+          <button onClick={() => setView("menu")} className="text-white text-sm font-bold bg-slate-800 px-4 py-2 rounded-xl active:scale-95 transition-all">
             ↩ 返回選單
           </button>
         )}
       </div>
 
-      <div className="w-full max-w-md px-4 mt-6">
+      {/* 🌟 頂部即時同步狀態燈條 */}
+      {view !== "menu" && (
+        <div className="w-full max-w-md px-4 mt-3">
+          <div className={`text-center py-1.5 rounded-xl text-xs font-bold shadow-sm transition-all ${
+            syncStatus === "saving" ? "bg-amber-100 text-amber-800 animate-pulse" :
+            syncStatus === "success" ? "bg-emerald-100 text-emerald-800" :
+            syncStatus === "error" ? "bg-red-100 text-red-800" : "bg-slate-100 text-slate-500"
+          }`}>
+            {syncStatus === "saving" && "⏳ 變更正在同步至雲端 Google 表單..."}
+            {syncStatus === "success" && "✅ 所有變更已完美儲存回雲端"}
+            {syncStatus === "error" && "❌ 同步出錯，請重新整理網頁"}
+            {syncStatus === "idle" && "👍 雲端資料連線正常"}
+          </div>
+        </div>
+      )}
+
+      <div className="w-full max-w-md px-4 mt-4">
         
         {/* ================= 主選單畫面 ================= */}
         {view === "menu" && (
@@ -142,7 +254,6 @@ export default function TourDashboardPage() {
               <span className="text-2xl text-slate-300">➔</span>
             </button>
 
-            {/* 總房表入口 */}
             <button onClick={() => setView("roomSummary")} className="flex items-center justify-between bg-blue-50 p-6 rounded-2xl shadow-sm border border-blue-200 active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-xl font-bold text-blue-800">🗝️ 總房表總覽</h2>
@@ -153,7 +264,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 1. 報到與基本資料畫面 ================= */}
+        {/* ================= 1. 報到資料 (點擊即時同步) ================= */}
         {view === "checkin" && (
           <div className="space-y-4">
             {memberData.map((member, idx) => (
@@ -175,8 +286,13 @@ export default function TourDashboardPage() {
                     <p className="text-xs text-blue-600 font-bold mb-0.5">📍 下車地點</p>
                     <p className="text-sm font-bold text-slate-700">{member.下車地點 || "未填寫"}</p>
                   </div>
-                  <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-lg border border-blue-100 shadow-sm">
-                    <input type="checkbox" className="w-5 h-5 rounded text-blue-600" defaultChecked={member.報到狀態 === "TRUE"} />
+                  <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-lg border border-blue-100 shadow-sm active:scale-95 transition-all">
+                    <input 
+                      type="checkbox" 
+                      className="w-5 h-5 rounded text-blue-600" 
+                      checked={member.報到狀態 === "TRUE"} 
+                      onChange={(e) => handleMemberStatusChange(idx, "報到狀態", e.target.checked)}
+                    />
                     <span className="font-bold text-blue-800">已報到</span>
                   </label>
                 </div>
@@ -185,39 +301,53 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 2. 裝備確認畫面 ================= */}
+        {/* ================= 2. 裝備確認 (點擊即時同步) ================= */}
         {view === "equipment" && (
           <div className="space-y-4">
             {equipmentMembers.length === 0 ? (
               <p className="text-center text-slate-400 py-10 font-bold">🎉 此團無人需要租借裝備</p>
             ) : (
-              equipmentMembers.map((member, idx) => (
-                <div key={idx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
-                  <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-3">
-                    <h3 className="text-lg font-bold text-slate-800">{member.姓名}</h3>
-                    <span className="text-xs font-bold text-slate-500">{member.分組 || "未編組"}</span>
-                  </div>
-                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3">
-                    <p className="text-xs text-emerald-600 font-bold mb-1">🎒 裝備明細</p>
-                    <p className="text-sm font-bold text-slate-700 mb-3">{member.裝備明細}</p>
-                    <div className="flex gap-2">
-                      <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2 rounded-lg border border-emerald-100 shadow-sm">
-                        <input type="checkbox" className="w-5 h-5 rounded text-emerald-600" defaultChecked={member.裝備借出 === "TRUE"} />
-                        <span className="font-bold text-emerald-800 text-sm">已借出</span>
-                      </label>
-                      <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2 rounded-lg border border-emerald-100 shadow-sm">
-                        <input type="checkbox" className="w-5 h-5 rounded text-emerald-600" defaultChecked={member.裝備歸還 === "TRUE"} />
-                        <span className="font-bold text-emerald-800 text-sm">已歸還</span>
-                      </label>
+              equipmentMembers.map((member, idx) => {
+                // 在過濾後的陣列中，需要找回它在原始 memberData 中的真正 index
+                const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
+                return (
+                  <div key={idx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-3">
+                      <h3 className="text-lg font-bold text-slate-800">{member.姓名}</h3>
+                      <span className="text-xs font-bold text-slate-500">{member.分組 || "未編組"}</span>
+                    </div>
+                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3">
+                      <p className="text-xs text-emerald-600 font-bold mb-1">🎒 裝備明細</p>
+                      <p className="text-sm font-bold text-slate-700 mb-3">{member.裝備明細}</p>
+                      <div className="flex gap-2">
+                        <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2 rounded-lg border border-emerald-100 shadow-sm active:scale-95 transition-all">
+                          <input 
+                            type="checkbox" 
+                            className="w-5 h-5 rounded text-emerald-600" 
+                            checked={member.裝備借出 === "TRUE"} 
+                            onChange={(e) => handleMemberStatusChange(originalIdx, "裝備借出", e.target.checked)}
+                          />
+                          <span className="font-bold text-emerald-800 text-sm">已借出</span>
+                        </label>
+                        <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2 rounded-lg border border-emerald-100 shadow-sm active:scale-95 transition-all">
+                          <input 
+                            type="checkbox" 
+                            className="w-5 h-5 rounded text-emerald-600" 
+                            checked={member.裝備歸還 === "TRUE"} 
+                            onChange={(e) => handleMemberStatusChange(originalIdx, "裝備歸還", e.target.checked)}
+                          />
+                          <span className="font-bold text-emerald-800 text-sm">已歸還</span>
+                        </label>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
 
-        {/* ================= 3. 餐點發放畫面 ================= */}
+        {/* ================= 3. 餐點發放 (點擊即時同步) ================= */}
         {view === "meals" && (
           <div className="space-y-4">
             {memberData.map((member, idx) => (
@@ -231,8 +361,13 @@ export default function TourDashboardPage() {
                     <p className="text-xs text-orange-600 font-bold mb-0.5">🍱 餐點內容</p>
                     <p className="text-sm font-bold text-slate-700">{member.五合目餐點 || "無"}</p>
                   </div>
-                  <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-orange-100 shadow-sm">
-                    <input type="checkbox" className="w-5 h-5 rounded text-orange-600" defaultChecked={member.餐點領取 === "TRUE"} />
+                  <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-orange-100 shadow-sm active:scale-95 transition-all">
+                    <input 
+                      type="checkbox" 
+                      className="w-5 h-5 rounded text-orange-600" 
+                      checked={member.餐點領取 === "TRUE"} 
+                      onChange={(e) => handleMemberStatusChange(idx, "餐點領取", e.target.checked)}
+                    />
                     <span className="font-bold text-orange-800 text-sm">已領取</span>
                   </label>
                 </div>
@@ -241,7 +376,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 4. 飯店排房畫面 ================= */}
+        {/* ================= 4. 飯店排房表 ================= */}
         {view === "rooms" && (
           <div className="space-y-4">
             {roomData.map((room, idx) => {
@@ -270,26 +405,32 @@ export default function TourDashboardPage() {
                       💬 {room.備註}
                     </div>
                   )}
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-slate-700 whitespace-nowrap">登記房號：</span>
                     <input
                       type="text"
-                      placeholder="導遊輸入房號..."
+                      placeholder="輸入房號..."
                       value={room.實際房號 || ""}
                       onChange={(e) => handleRoomNumberChange(idx, e.target.value)}
-                      className="flex-1 min-w-0 border-2 border-slate-200 rounded-xl px-4 py-2.5 font-bold text-slate-800 focus:outline-none focus:border-blue-500 bg-white"
+                      className="flex-1 min-w-0 border-2 border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-800 focus:outline-none focus:border-blue-500 bg-white text-sm"
                     />
+                    <button
+                      onClick={() => saveSingleRoomNumber(idx)}
+                      disabled={savingIdx !== null}
+                      className="bg-emerald-600 text-white font-bold text-xs px-3 py-2.5 rounded-xl shadow-sm active:scale-95 disabled:bg-slate-300 transition-all whitespace-nowrap"
+                    >
+                      {savingIdx === idx ? "⏳..." : "💾 儲存"}
+                    </button>
                   </div>
                 </div>
               );
             })}
             
-            {/* 排房表最下方的捷徑按鈕 */}
             <button 
-              onClick={() => setView("roomSummary")}
-              className="w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-md active:scale-95 transition-all"
+              onClick={handleSaveAllAndSummary}
+              className="w-full mt-6 bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-md active:scale-95 transition-all text-center"
             >
-              完成登記，查看總房表 ➔
+              🚀 一鍵同步雲端並看總房表 ➔
             </button>
           </div>
         )}
@@ -297,9 +438,6 @@ export default function TourDashboardPage() {
         {/* ================= 5. 總房表畫面 ================= */}
         {view === "roomSummary" && (
           <div className="space-y-3">
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 text-sm text-blue-800 font-medium">
-              💡 這裡會即時顯示您剛剛輸入的房號，方便您在櫃檯發放鑰匙。
-            </div>
             {roomData.map((room, idx) => {
               const guests = getGuestsList(room);
               return (
