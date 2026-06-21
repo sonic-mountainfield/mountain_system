@@ -132,7 +132,7 @@ export default function HomePage() {
     );
   }
 
-  // ================= 狀況二：登入成功 =================
+  // ================= 狀況二：登入成功 (主功能選單) =================
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm bg-white p-6 rounded-3xl shadow-md border border-slate-200 space-y-6 text-center">
@@ -144,17 +144,37 @@ export default function HomePage() {
           </p>
         </div>
 
+        {/* 🌟 依您的要求改版的三大系列出團選單 */}
         <div className="flex flex-col gap-3">
+          
+          {/* 1. 富士山三日團 入口 */}
           <Link
             href="/three-days"
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl shadow-md active:scale-95 transition-all text-center block text-lg"
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl shadow-sm active:scale-[0.98] transition-all text-center block text-base"
           >
-            🗻 前往「三日出團總表」
+            🗻 前往「富士山三日團」
           </Link>
           
-          <button className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-2xl text-center cursor-not-allowed text-sm">
-            🔒 二日團管理 (尚未開放)
-          </button>
+          {/* 2. 富士山五日團 入口 */}
+          <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 px-4 text-center relative overflow-hidden group">
+            <span className="text-slate-700 font-bold text-base block opacity-60">
+              🇯🇵 富士山五日團
+            </span>
+            <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full font-bold inline-block mt-1">
+              🔒 系統規劃中
+            </span>
+          </div>
+
+          {/* 3. 日本登山系列團 入口 */}
+          <div className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 px-4 text-center relative overflow-hidden group">
+            <span className="text-slate-700 font-bold text-base block opacity-60">
+              🥾 日本登山系列團
+            </span>
+            <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-0.5 rounded-full font-bold inline-block mt-1">
+              🔒 系統規劃中
+            </span>
+          </div>
+
         </div>
 
         <div className="border-t border-slate-100 pt-4">
