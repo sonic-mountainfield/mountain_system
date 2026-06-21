@@ -1,162 +1,66 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import Link from "next/link";
 
-export default function HomePage() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+async function getTours() {
+  const sheetDbUrl = "https://sheetdb.io/api/v1/ng85gs3977snc";
 
-  const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
-
-  // 檢查瀏覽器是否記憶過登入狀態
-  useEffect(() => {
-    const loginStatus = localStorage.getItem("yuenor_login");
-    if (loginStatus === "true") {
-      setIsLoggedIn(true);
-    }
-  }, []);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!username.trim() || !password.trim()) {
-      setError("❌ 請填寫帳號與密碼！");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError("");
-
-      // 🌟 連線到 Google 試算表的「系統設定」分頁
-      const res = await fetch(`${SHEETDB_URL}?sheet=系統設定`, { cache: "no-store" });
-      const users = await res.json();
-
-      if (!Array.isArray(users)) {
-        setError("❌ 系統連線異常，請稍後再試！");
-        return;
+  try {
+    const res = await fetch(`${sheetDbUrl}?sheet=3日出團總表`, { cache: "no-store" });
+    const data = await res.json();
+    
+    if (!Array.isArray(data)) return [];
+    
+    const uniqueTours: { tourId: string; date: string }[] = [];
+    const seen = new Set();
+    
+    data.forEach((row: any) => {
+      if (row.團號 && !seen.has(row.團號)) {
+        seen.add(row.團號);
+        uniqueTours.push({
+          tourId: row.團號,
+          date: row.出發日期 || "未定日期"
+        });
       }
-
-      // 檢查有沒有匹配的帳號與密碼
-      // 自動清除前後空格，防呆避免複製時多按到空白
-      const matchedUser = users.find(
-        (u: any) =>
-          String(u.帳號).trim() === username.trim() &&
-          String(u.密碼).trim() === password.trim()
-      );
-
-      if (matchedUser) {
-        localStorage.setItem("yuenor_login", "true");
-        // 順便把目前登入的嚮導姓名記起來，未來功能可以用到
-        localStorage.setItem("yuenor_user_name", String(matchedUser.導遊姓名 || matchedUser.帳號));
-        setIsLoggedIn(true);
-        setError("");
-      } else {
-        setError("❌ 帳號或密碼錯誤，請重新輸入！");
-      }
-    } catch (err) {
-      console.error("登入驗證出錯:", err);
-      setError("❌ 無法連線至雲端驗證系統！");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("yuenor_login");
-    localStorage.removeItem("yuenor_user_name");
-    setIsLoggedIn(false);
-    setUsername("");
-    setPassword("");
-  };
-
-  // ================= 狀況一：尚未登入，顯示輸入帳密畫面 =================
-  if (!isLoggedIn) {
-    return (
-      <main className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-6">
-        <div className="w-full max-w-sm bg-white p-8 rounded-3xl shadow-xl text-center space-y-6">
-          <div>
-            <span className="text-4xl">🏔️</span>
-            <h1 className="text-2xl font-black text-slate-800 mt-3">岳野登山公司</h1>
-            <p className="text-sm font-bold text-slate-500 mt-1">嚮導工作平台 - 登入系統</p>
-          </div>
-
-          <form onSubmit={handleLogin} className="space-y-4 text-left">
-            <div>
-              <label className="text-xs font-bold text-slate-400 block mb-1 pl-1">嚮導帳號</label>
-              <input
-                type="text"
-                placeholder="輸入帳號"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={loading}
-                className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3 font-bold focus:outline-none focus:border-blue-500 transition-all bg-slate-50"
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-400 block mb-1 pl-1">專屬密碼</label>
-              <input
-                type="password"
-                placeholder="輸入密碼"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={loading}
-                className="w-full border-2 border-slate-200 rounded-2xl px-4 py-3 font-bold focus:outline-none focus:border-blue-500 transition-all bg-slate-50"
-              />
-            </div>
-
-            {error && <p className="text-sm font-bold text-red-500 text-center">{error}</p>}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-4 rounded-2xl shadow-md active:scale-95 transition-all text-center disabled:bg-slate-400"
-            >
-              {loading ? "⏳ 雲端安全驗證中..." : "安全登入 ➔"}
-            </button>
-          </form>
-        </div>
-      </main>
-    );
+    });
+    
+    return uniqueTours;
+  } catch (error) {
+    console.error("讀取資料失敗:", error);
+    return [];
   }
+}
 
-  // ================= 狀況二：登入成功 =================
+export default async function ThreeDaysTourPage() {
+  const tours = await getTours();
+
   return (
-    <main className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-sm bg-white p-6 rounded-3xl shadow-md border border-slate-200 space-y-6 text-center">
-        <div>
-          <span className="text-3xl">🥾</span>
-          <h1 className="text-xl font-black text-slate-800 mt-2">岳野嚮導平台</h1>
-          <p className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full inline-block mt-1">
-            🔒 歡迎回來，雲端驗證成功
+    <main className="min-h-screen bg-slate-50 flex flex-col items-center py-10 px-6">
+      <div className="w-full max-w-sm mb-8 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-slate-800">選擇三日團</h1>
+        <Link href="/" className="text-blue-600 text-sm font-medium hover:underline">
+          返回首頁
+        </Link>
+      </div>
+
+      <div className="w-full max-w-sm flex flex-col gap-4">
+        {tours.length === 0 ? (
+          <p className="text-center text-slate-500 py-10">
+            目前沒有出團資料，請檢查雲端連線。
           </p>
-        </div>
-
-        <div className="flex flex-col gap-3">
-          <Link
-            href="/three-days"
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 rounded-2xl shadow-md active:scale-95 transition-all text-center block text-lg"
-          >
-            🗻 前往「三日出團總表」
-          </Link>
-          
-          <button className="w-full bg-slate-100 text-slate-400 font-bold py-4 rounded-2xl text-center cursor-not-allowed text-sm">
-            🔒 二日團管理 (尚未開放)
-          </button>
-        </div>
-
-        <div className="border-t border-slate-100 pt-4">
-          <button
-            onClick={handleLogout}
-            className="text-slate-400 hover:text-slate-600 text-xs font-bold transition-all"
-          >
-            登出系統 ↩
-          </button>
-        </div>
+        ) : (
+          tours.map((tour) => (
+            <Link 
+              key={tour.tourId}
+              href={`/three-days/${tour.tourId}`}
+              className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all active:scale-[0.98] flex justify-between items-center"
+            >
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">{tour.tourId}</h2>
+                <p className="text-slate-500 text-sm mt-1">出發日：{tour.date}</p>
+              </div>
+              <span className="text-slate-400 font-bold">➔</span>
+            </Link>
+          ))
+        )}
       </div>
     </main>
   );
