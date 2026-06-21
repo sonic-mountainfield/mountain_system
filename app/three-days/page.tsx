@@ -2,13 +2,18 @@ import Link from "next/link";
 
 // 建立一個非同步函式來抓取 Google 表單 (SheetDB) 的資料
 async function getTours() {
-  const sheetDbUrl = process.env.NEXT_PUBLIC_SHEETDB_URL;
-  if (!sheetDbUrl) return [];
+  // 🌟 我們不搞環境變數了，直接把網址寫死在這裡！
+  const sheetDbUrl = "https://sheetdb.io/api/v1/ng85gs3977snc";
 
   try {
     // 加上 cache: 'no-store' 確保每次重新整理都能抓到最新資料
     const res = await fetch(`${sheetDbUrl}?sheet=3日出團總表`, { cache: "no-store" });
     const data = await res.json();
+    
+    // 如果回傳的不是陣列（發生錯誤），就回傳空陣列
+    if (!Array.isArray(data)) {
+      return [];
+    }
     
     // 過濾並整理出不重複的「團號」與「出發日期」
     const uniqueTours: { tourId: string; date: string }[] = [];
@@ -47,7 +52,7 @@ export default async function ThreeDaysTourPage() {
       <div className="w-full max-w-sm flex flex-col gap-4">
         {tours.length === 0 ? (
           <p className="text-center text-slate-500 py-10">
-            目前沒有出團資料，或是請檢查 API 網址設定。
+            目前沒有出團資料，或是讀取中...
           </p>
         ) : (
           tours.map((tour) => (
