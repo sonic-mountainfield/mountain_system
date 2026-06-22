@@ -67,7 +67,8 @@ export default function TourDashboardPage() {
 
     } catch (error) {
       console.error("資料自動化統計失敗:", error);
-    } finaly {
+    } finally {
+      // 🌟 修正：這裡換回正式的 finally 關鍵字，排除編譯錯誤！
       setLoading(false);
     }
   }
@@ -76,7 +77,6 @@ export default function TourDashboardPage() {
     if (tourId) fetchData();
   }, [tourId]);
 
-  // 通用的團員欄位更新函式 (打勾與文字輸入共用)
   const handleMemberFieldUpdate = async (index: number, field: string, value: string) => {
     setSyncStatus("saving");
     const updatedMembers = [...memberData];
@@ -125,7 +125,7 @@ export default function TourDashboardPage() {
       });
       if (response.ok) setSyncStatus("success");
       else setSyncStatus("error");
-    } catch (error) { setSyncStatus("error"); } finaly { setSavingIdx(null); }
+    } catch (error) { setSyncStatus("error"); } finally { setSavingIdx(null); }
   };
 
   const handleSaveAllAndSummary = async () => {
@@ -146,7 +146,7 @@ export default function TourDashboardPage() {
       setSyncStatus("success");
       await fetchData();
       setView("roomSummary");
-    } catch (error) { setSyncStatus("error"); setView("roomSummary"); } finaly { setLoading(false); }
+    } catch (error) { setSyncStatus("error"); setView("roomSummary"); } finally { setLoading(false); }
   };
 
   const getGuestsList = (room: any) => {
@@ -304,7 +304,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 📋 報到與基本資料 (📝 修正：此處的 handleMemberStatusChange 改為 handleMemberFieldUpdate) ================= */}
+        {/* ================= 📋 報到與基本資料 ================= */}
         {view === "checkin" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800">
@@ -359,7 +359,6 @@ export default function TourDashboardPage() {
                       <p className="text-sm font-black text-stone-700">{member.下車地點 || "未填寫"}</p>
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-lg border border-emerald-200 shadow-sm active:scale-95 transition-all">
-                      {/* 🌟 修正：此處改用通用欄位更新函式，確保全系統名稱與形態統一 */}
                       <input 
                         type="checkbox" 
                         className="w-5 h-5 rounded text-emerald-700" 
@@ -375,7 +374,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🎒 4. 裝備確認 (📝 修正：此處同樣替換為 handleMemberFieldUpdate) ================= */}
+        {/* ================= 🎒 4. 裝備確認 ================= */}
         {view === "equipment" && (
           <div className="space-y-4">
             {equipmentMembers.length === 0 ? (
@@ -412,12 +411,10 @@ export default function TourDashboardPage() {
 
                       <div className="flex gap-2 pt-1">
                         <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2.5 rounded-xl border border-stone-200 active:scale-95 transition-all cursor-pointer">
-                          {/* 🌟 修正 */}
                           <input type="checkbox" className="w-4 h-4 text-emerald-700 rounded" checked={member.裝備借出 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備借出", e.target.checked ? "TRUE" : "FALSE")}/>
                           <span className="font-black text-stone-700 text-xs">已借出</span>
                         </label>
                         <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2.5 rounded-xl border border-stone-200 active:scale-95 transition-all cursor-pointer">
-                          {/* 🌟 修正 */}
                           <input type="checkbox" className="w-4 h-4 text-emerald-700 rounded" checked={member.裝備歸還 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備歸還", e.target.checked ? "TRUE" : "FALSE")}/>
                           <span className="font-black text-stone-700 text-xs">已歸還</span>
                         </label>
@@ -430,7 +427,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🍱 5. 登山口餐點 (📝 修正：此處亦同步替換) ================= */}
+        {/* ================= 🍱 5. 登山口餐點 ================= */}
         {view === "meals" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-emerald-900 to-stone-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800">
@@ -463,7 +460,6 @@ export default function TourDashboardPage() {
                       <p className="text-sm font-black text-stone-800">{member.五合目餐點 || "常規餐點"}</p>
                     </div>
                     <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-orange-200 shadow-sm active:scale-95 transition-all cursor-pointer">
-                      {/* 🌟 修正 */}
                       <input type="checkbox" className="w-5 h-5 rounded text-orange-600" checked={member.餐點領取 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(idx, "餐點領取", e.target.checked ? "TRUE" : "FALSE")}/>
                       <span className="font-black text-orange-950 text-xs">已點收</span>
                     </label>
