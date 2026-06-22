@@ -19,6 +19,10 @@ export default function TourDashboardPage() {
   const [roomData, setRoomData] = useState<any[]>([]);
   const [tourGroups, setTourGroups] = useState<string[]>([]);
 
+  const [mealStats, setMealStats] = useState<{ [key: string]: number }>({});
+  const [dropoffStats, setDropoffStats] = useState<{ [key: string]: number }>({});
+  const [roomTypeStats, setRoomTypeStats] = useState<{ [key: string]: number }>({});
+
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
 
   async function fetchData() {
@@ -45,15 +49,25 @@ export default function TourDashboardPage() {
           groupsSet.add(gName);
         }
       });
+      setMealStats(mealsMap);
+      setDropoffStats(dropoffMap);
       setTourGroups(Array.from(groupsSet).sort());
 
       const resRooms = await fetch(`${SHEETDB_URL}?sheet=3日排房表`, { cache: "no-store" });
       const allRooms = await resRooms.json();
       const filteredRooms = Array.isArray(allRooms) ? allRooms.filter((r: any) => r.團號 === tourId) : [];
       setRoomData(filteredRooms);
+
+      const roomsMap: { [key: string]: number } = {};
+      filteredRooms.forEach((r: any) => {
+        const rType = r.房型 ? String(r.房型).trim() : "未定房型";
+        roomsMap[rType] = (roomsMap[rType] || 0) + 1;
+      });
+      setRoomTypeStats(roomsMap);
+
     } catch (error) {
       console.error("資料自動化統計失敗:", error);
-    } finally {
+    } finaly {
       setLoading(false);
     }
   }
@@ -62,7 +76,7 @@ export default function TourDashboardPage() {
     if (tourId) fetchData();
   }, [tourId]);
 
-  // 通用的團員欄位更新函式 (打勾、輸入文字皆可使用)
+  // 通用的團員欄位更新函式 (打勾與文字輸入共用)
   const handleMemberFieldUpdate = async (index: number, field: string, value: string) => {
     setSyncStatus("saving");
     const updatedMembers = [...memberData];
@@ -85,7 +99,6 @@ export default function TourDashboardPage() {
     }
   };
 
-  // 本地即時更新文字輸入框的值 (避免每打一個字就去敲一次 API)
   const handleLocalTextChange = (index: number, field: string, value: string) => {
     const updatedMembers = [...memberData];
     updatedMembers[index] = { ...updatedMembers[index], [field]: value };
@@ -112,7 +125,28 @@ export default function TourDashboardPage() {
       });
       if (response.ok) setSyncStatus("success");
       else setSyncStatus("error");
-    } catch (error) { setSyncStatus("error"); } finally { setSavingIdx(null); }
+    } catch (error) { setSyncStatus("error"); } finaly { setSavingIdx(null); }
+  };
+
+  const handleSaveAllAndSummary = async () => {
+    setLoading(true);
+    setSyncStatus("saving");
+    try {
+      for (let i = 0; i < roomData.length; i++) {
+        const room = roomData[i];
+        const primaryGuest = room["房客 1"] || room.房客1;
+        if (primaryGuest) {
+          await fetch(`${SHEETDB_URL}/房客 1/${encodeURIComponent(primaryGuest)}?sheet=3日排房表`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data: { 實際房號: room.實際房號 || "" } })
+          });
+        }
+      }
+      setSyncStatus("success");
+      await fetchData();
+      setView("roomSummary");
+    } catch (error) { setSyncStatus("error"); setView("roomSummary"); } finaly { setLoading(false); }
   };
 
   const getGuestsList = (room: any) => {
@@ -229,7 +263,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🥾 團隊分組看名單面 (同步展示現場備註) ================= */}
+        {/* ================= 🥾 分組名單畫面 ================= */}
         {view === "groupDetail" && (
           <div className="space-y-6">
             {tourGroups.map((groupName) => {
@@ -255,7 +289,6 @@ export default function TourDashboardPage() {
                             </div>
                             <span className={`text-xs font-bold px-2 py-1 rounded-md border ${member.報到狀態 === "TRUE" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-stone-50 text-stone-400 border-stone-200"}`}>{member.報到狀態 === "TRUE" ? "✅ 已報到" : "⏳ 未報到"}</span>
                           </div>
-                          {/* 顯示現場填寫的備註項目 */}
                           {member.備註 && (
                             <div className="text-xs bg-stone-50 border border-stone-200 text-stone-600 p-2 rounded-xl font-medium">
                               📝 現場註記：{member.備註}
@@ -271,9 +304,22 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 📋 報到與基本資料 (📝 新增客戶現場備註欄位功能) ================= */}
+        {/* ================= 📋 報到與基本資料 (📝 修正：此處的 handleMemberStatusChange 改為 handleMemberFieldUpdate) ================= */}
         {view === "checkin" && (
           <div className="space-y-4">
+            <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800">
+              <p className="text-[9px] text-emerald-400 font-black tracking-widest uppercase">Drop-off Automation Stats</p>
+              <h3 className="text-sm font-black text-emerald-100 mt-0.5 mb-3">📍 下車接駁地點人次加總</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(dropoffStats).map(([loc, count]) => (
+                  <div key={loc} className="bg-stone-950/40 border border-emerald-800/40 p-2.5 rounded-xl flex justify-between items-center">
+                    <span className="text-xs font-bold text-stone-300 truncate mr-1">{loc}</span>
+                    <span className="text-base font-black text-amber-400 whitespace-nowrap">{count} <span className="text-[10px] text-stone-400 font-bold">人</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {memberData.map((member, idx) => {
               const isVegetarian = String(member.病史 || "").includes("素") || String(member.五合目餐點 || "").includes("素");
               return (
@@ -295,12 +341,11 @@ export default function TourDashboardPage() {
                     </div>
                   )}
 
-                  {/* 🌟 2. 客戶現場備註修改輸入框 */}
                   <div className="pt-1">
                     <label className="text-[10px] font-black text-stone-400 block mb-1 pl-1">📝 現場工作人員備註 (打完點旁邊自動儲存)</label>
                     <input
                       type="text"
-                      placeholder="例如：高山症提供止痛藥、體力較慢、已與陳小姐同車..."
+                      placeholder="現場追加註記..."
                       value={member.備註 || ""}
                       onChange={(e) => handleLocalTextChange(idx, "備註", e.target.value)}
                       onBlur={(e) => handleMemberFieldUpdate(idx, "備註", e.target.value)}
@@ -314,7 +359,13 @@ export default function TourDashboardPage() {
                       <p className="text-sm font-black text-stone-700">{member.下車地點 || "未填寫"}</p>
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-lg border border-emerald-200 shadow-sm active:scale-95 transition-all">
-                      <input type="checkbox" className="w-5 h-5 rounded text-emerald-700" checked={member.報到狀態 === "TRUE"} onChange={(e) => handleMemberStatusChange(idx, "報到狀態", e.target.checked)}/>
+                      {/* 🌟 修正：此處改用通用欄位更新函式，確保全系統名稱與形態統一 */}
+                      <input 
+                        type="checkbox" 
+                        className="w-5 h-5 rounded text-emerald-700" 
+                        checked={member.報到狀態 === "TRUE"} 
+                        onChange={(e) => handleMemberFieldUpdate(idx, "報到狀態", e.target.checked ? "TRUE" : "FALSE")}
+                      />
                       <span className="font-black text-emerald-900 text-sm">已報到</span>
                     </label>
                   </div>
@@ -324,7 +375,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🎒 裝備確認 (🚨 新增各案問題回報功能) ================= */}
+        {/* ================= 🎒 4. 裝備確認 (📝 修正：此處同樣替換為 handleMemberFieldUpdate) ================= */}
         {view === "equipment" && (
           <div className="space-y-4">
             {equipmentMembers.length === 0 ? (
@@ -347,12 +398,11 @@ export default function TourDashboardPage() {
                         <p className="text-sm font-black text-stone-700">{member.裝備明細}</p>
                       </div>
 
-                      {/* 🌟 1. 各案專屬問題回報框 */}
                       <div className="border-t border-stone-200/60 pt-2">
                         <label className="text-[10px] font-black text-red-700 block mb-1 pl-0.5">🚨 裝備損壞/尺寸不合問題回報 (離開點選自動儲存)</label>
                         <input
                           type="text"
-                          placeholder="例如：登山杖第三節鎖不緊、鞋子現場換大一號..."
+                          placeholder="例如：登山杖第三節損壞..."
                           value={member.問題回報 || ""}
                           onChange={(e) => handleLocalTextChange(originalIdx, "問題回報", e.target.value)}
                           onBlur={(e) => handleMemberFieldUpdate(originalIdx, "問題回報", e.target.value)}
@@ -362,11 +412,13 @@ export default function TourDashboardPage() {
 
                       <div className="flex gap-2 pt-1">
                         <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2.5 rounded-xl border border-stone-200 active:scale-95 transition-all cursor-pointer">
-                          <input type="checkbox" className="w-4 h-4 text-emerald-700 rounded" checked={member.裝備借出 === "TRUE"} onChange={(e) => handleMemberStatusChange(originalIdx, "裝備借出", e.target.checked)}/>
+                          {/* 🌟 修正 */}
+                          <input type="checkbox" className="w-4 h-4 text-emerald-700 rounded" checked={member.裝備借出 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備借出", e.target.checked ? "TRUE" : "FALSE")}/>
                           <span className="font-black text-stone-700 text-xs">已借出</span>
                         </label>
                         <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2.5 rounded-xl border border-stone-200 active:scale-95 transition-all cursor-pointer">
-                          <input type="checkbox" className="w-4 h-4 text-emerald-700 rounded" checked={member.裝備歸還 === "TRUE"} onChange={(e) => handleMemberStatusChange(originalIdx, "裝備歸還", e.target.checked)}/>
+                          {/* 🌟 修正 */}
+                          <input type="checkbox" className="w-4 h-4 text-emerald-700 rounded" checked={member.裝備歸還 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備歸還", e.target.checked ? "TRUE" : "FALSE")}/>
                           <span className="font-black text-stone-700 text-xs">已歸還</span>
                         </label>
                       </div>
@@ -378,9 +430,22 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🍱 餐點發放 ================= */}
+        {/* ================= 🍱 5. 登山口餐點 (📝 修正：此處亦同步替換) ================= */}
         {view === "meals" && (
           <div className="space-y-4">
+            <div className="bg-gradient-to-br from-emerald-900 to-stone-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800">
+              <p className="text-[9px] text-emerald-400 font-black tracking-widest uppercase">Catering Automation Stats</p>
+              <h3 className="text-sm font-black text-emerald-100 mt-0.5 mb-3">🍱 五合目登山口物資總量清點</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(mealStats).map(([meal, count]) => (
+                  <div key={meal} className="bg-stone-950/40 border border-emerald-800/40 p-2.5 rounded-xl flex justify-between items-center">
+                    <span className="text-xs font-bold text-stone-300 truncate mr-1">{meal}</span>
+                    <span className="text-base font-black text-amber-400 whitespace-nowrap">{count} <span className="text-[10px] text-stone-400 font-bold">份</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {memberData.map((member, idx) => {
               const isVegetarian = String(member.病史 || "").includes("素") || String(member.五合目餐點 || "").includes("素");
               return (
@@ -398,7 +463,8 @@ export default function TourDashboardPage() {
                       <p className="text-sm font-black text-stone-800">{member.五合目餐點 || "常規餐點"}</p>
                     </div>
                     <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-orange-200 shadow-sm active:scale-95 transition-all cursor-pointer">
-                      <input type="checkbox" className="w-5 h-5 rounded text-orange-600" checked={member.餐點領取 === "TRUE"} onChange={(e) => handleMemberStatusChange(idx, "餐點領取", e.target.checked)}/>
+                      {/* 🌟 修正 */}
+                      <input type="checkbox" className="w-5 h-5 rounded text-orange-600" checked={member.餐點領取 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(idx, "餐點領取", e.target.checked ? "TRUE" : "FALSE")}/>
                       <span className="font-black text-orange-950 text-xs">已點收</span>
                     </label>
                   </div>
@@ -408,7 +474,7 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🏨 飯店排房登記 ================= */}
+        {/* ================= 🏨 6. 飯店排房登記 ================= */}
         {view === "rooms" && (
           <div className="space-y-4">
             {roomData.map((room, idx) => {
@@ -434,12 +500,26 @@ export default function TourDashboardPage() {
                 </div>
               );
             })}
+            <button onClick={handleSaveAllAndSummary} className="w-full mt-6 bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-center text-sm tracking-wide">🌲 一鍵同步雲端並看總房表 ➔</button>
           </div>
         )}
 
-        {/* ================= 🗝️ 總房表快速對照 ================= */}
+        {/* ================= 🗝️ 7. 總房表快速對照 ================= */}
         {view === "roomSummary" && (
           <div className="space-y-3">
+            <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800 mb-2">
+              <p className="text-[9px] text-emerald-400 font-black tracking-widest uppercase">Room-type Automation Stats</p>
+              <h3 className="text-sm font-black text-emerald-100 mt-0.5 mb-3">🏨 飯店各式房型總量清點 (向櫃檯拿鑰匙專用)</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(roomTypeStats).map(([rType, count]) => (
+                  <div key={rType} className="bg-stone-950/40 border border-emerald-800/40 p-2.5 rounded-xl flex justify-between items-center">
+                    <span className="text-xs font-bold text-stone-300 truncate mr-1">{rType}</span>
+                    <span className="text-base font-black text-amber-400 whitespace-nowrap">{count} <span className="text-[10px] text-stone-400 font-bold">間</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             {roomData.map((room, idx) => {
               const guests = getGuestsList(room);
               return (
