@@ -82,7 +82,6 @@ export default function HomePage() {
   if (!isLoggedIn) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-emerald-950 via-emerald-900 to-stone-900 flex flex-col items-center justify-center px-6 relative overflow-hidden">
-        {/* 背景裝飾小樹 */}
         <div className="absolute -bottom-10 -left-10 text-9xl opacity-10 select-none">🌲</div>
         <div className="absolute -top-10 -right-10 text-9xl opacity-10 select-none">🏔️</div>
 
@@ -96,7 +95,6 @@ export default function HomePage() {
           <form onSubmit={handleLogin} className="space-y-4 text-left">
             <div>
               <label className="text-xs font-black text-emerald-400 block mb-1.5 pl-1 tracking-wider">嚮導帳號</label>
-              {/* 💡 修正：背景改為墨綠黑，字體直接改為純白高對比度 (text-white)，框線強化 */}
               <input
                 type="text"
                 placeholder="請輸入帳號"
@@ -109,7 +107,6 @@ export default function HomePage() {
 
             <div>
               <label className="text-xs font-black text-emerald-400 block mb-1.5 pl-1 tracking-wider">專屬密碼</label>
-              {/* 💡 修正：同樣修正密碼框的對比度，輸入字體為亮白 */}
               <input
                 type="password"
                 placeholder="請輸入密碼"
@@ -125,7 +122,7 @@ export default function HomePage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-4 rounded-2xl shadow-lg shadow-emerald-950/50 active:scale-95 transition-all text-center disabled:bg-stone-700 disabled:text-stone-500 text-base tracking-wider"
+              className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold py-4 rounded-2xl shadow-lg active:scale-95 transition-all text-center disabled:bg-stone-700 disabled:text-stone-500 text-base tracking-wider"
             >
               {loading ? "⏳ 雲端安全驗證中..." : "🌲 進入嚮導工作台 ➔"}
             </button>
@@ -138,7 +135,7 @@ export default function HomePage() {
   // ================= 🌲 森林系主功能選單 (狀況二) =================
   return (
     <main className="min-h-screen bg-gradient-to-b from-stone-100 to-emerald-50/40 flex flex-col items-center justify-center p-6 relative">
-      <div className="w-full max-w-sm bg-white p-6 rounded-3xl shadow-xl border border-emerald-100 space-y-6 text-center">
+      <div className="w-full max-w-sm bg-white p-6 rounded-3xl shadow-xl border border-emerald-100 space-y-5 text-center">
         <div>
           <span className="text-4xl inline-block drop-shadow">🥾</span>
           <h1 className="text-2xl font-black text-stone-800 mt-2">岳野嚮導平台</h1>
@@ -147,39 +144,37 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-3.5 pt-2">
-          
+        <div className="flex flex-col gap-3 pt-1">
+          {/* 🌟 新增：季度工作日誌核心調度中心分頁入口 */}
+          <Link
+            href="/quarterly-log"
+            className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-black py-4 rounded-2xl shadow-md active:scale-[0.98] transition-all text-center block text-base tracking-wide border border-amber-600/30"
+          >
+            🗓️ 前往「季度工作日誌總部」
+          </Link>
+
           {/* 1. 富士山三日團 */}
           <Link
             href="/three-days"
-            className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-md shadow-emerald-900/10 active:scale-[0.98] transition-all text-center block text-base tracking-wide"
+            className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-md active:scale-[0.98] transition-all text-center block text-base tracking-wide"
           >
             🏔️ 前往「富士山三日團」
           </Link>
           
           {/* 2. 富士山五日團 */}
-          <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl py-4 px-4 text-center relative overflow-hidden">
-            <span className="text-stone-700 font-extrabold text-base block opacity-40">
-              🇯🇵 富士山五日團
-            </span>
-            <span className="text-[10px] bg-stone-200 text-stone-500 px-2.5 py-0.5 rounded-full font-bold inline-block mt-1">
-              🔒 系統規劃中
-            </span>
+          <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl py-3 px-4 text-center relative overflow-hidden opacity-60">
+            <span className="text-stone-700 font-extrabold text-sm block">🇯🇵 富士山五日團</span>
+            <span className="text-[9px] bg-stone-200 text-stone-500 px-2 py-0.5 rounded-full font-bold inline-block mt-0.5">🔒 系統規劃中</span>
           </div>
 
           {/* 3. 日本登山系列團 */}
-          <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl py-4 px-4 text-center relative overflow-hidden">
-            <span className="text-stone-700 font-extrabold text-base block opacity-40">
-              🧗 日本登山系列團
-            </span>
-            <span className="text-[10px] bg-stone-200 text-stone-500 px-2.5 py-0.5 rounded-full font-bold inline-block mt-1">
-              🔒 系統規劃中
-            </span>
+          <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl py-3 px-4 text-center relative overflow-hidden opacity-60">
+            <span className="text-stone-700 font-extrabold text-sm block">🧗 日本登山系列團</span>
+            <span className="text-[9px] bg-stone-200 text-stone-500 px-2 py-0.5 rounded-full font-bold inline-block mt-0.5">🔒 系統規劃中</span>
           </div>
-
         </div>
 
-        <div className="border-t border-stone-100 pt-4">
+        <div className="border-t border-stone-100 pt-3">
           <button
             onClick={handleLogout}
             className="text-stone-400 hover:text-orange-600 hover:bg-orange-50 px-4 py-1.5 rounded-xl text-xs font-bold transition-all"
