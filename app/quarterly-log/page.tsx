@@ -32,6 +32,8 @@ export default function QuarterlyLogPage() {
   // 建團表單
   const [formTourId, setFormTourId] = useState("");
   const [formTourName, setFormTourName] = useState("富士山三日團");
+  // 🌟 新增：針對日本登山系列團的客製化活動名稱
+  const [formCustomActivityName, setFormCustomActivityName] = useState("");
   const [formTourDate, setFormTourDate] = useState("2026-07-08");
   const [formTourDays, setFormTourDays] = useState("3");
 
@@ -43,7 +45,7 @@ export default function QuarterlyLogPage() {
   const [formLogNotes, setFormLogNotes] = useState("");
 
   // 一覽表篩選器
-  const [filterMonth, setFilterMonth] = useState<string>("all"); // "all", "07", "08", "09", "10", "11"
+  const [filterMonth, setFilterMonth] = useState<string>("all");
   const [filterTour, setFilterTour] = useState<string>("all");
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
@@ -52,12 +54,10 @@ export default function QuarterlyLogPage() {
   async function fetchLogSystemData() {
     try {
       setLoading(true);
-      // 1. 抓取開團排程
       const resTours = await fetch(`${SHEETDB_URL}?sheet=團期排程表`, { cache: "no-store" });
       const toursData = await resTours.json();
       setTours(Array.isArray(toursData) ? toursData : []);
 
-      // 2. 抓取大量事件日誌
       const resLogs = await fetch(`${SHEETDB_URL}?sheet=營運日誌總表`, { cache: "no-store" });
       const logsData = await resLogs.json();
       setLogs(Array.isArray(logsData) ? logsData : []);
@@ -79,11 +79,25 @@ export default function QuarterlyLogPage() {
       alert("請輸入團號！");
       return;
     }
+    
+    // 🌟 防呆：如果選了日本登山系列團，強制要求輸入活動名稱
+    if (formTourName === "日本登山系列團" && !formCustomActivityName.trim()) {
+      alert("請輸入確切活動名稱（如：槍岳表銀座）！");
+      return;
+    }
+
     try {
       setSyncStatus("saving");
+
+      // 🌟 智慧組合：不用修改資料庫欄位，直接把自訂名稱接在團名後面
+      let finalTourName = formTourName;
+      if (formTourName === "日本登山系列團") {
+        finalTourName = `日本登山系列團 - ${formCustomActivityName.trim()}`;
+      }
+
       const payload = {
         團號: formTourId.trim().toUpperCase(),
-        團名: formTourName,
+        團名: finalTourName,
         出發日期: formTourDate,
         天數: formTourDays
       };
@@ -97,6 +111,7 @@ export default function QuarterlyLogPage() {
       if (res.ok) {
         setSyncStatus("success");
         setFormTourId("");
+        setFormCustomActivityName(""); // 清空自訂名稱
         await fetchLogSystemData();
         setSubView("review");
       } else {
@@ -144,11 +159,10 @@ export default function QuarterlyLogPage() {
     }
   };
 
-  // 🌟 ERP 智慧核心演算法：生成 7/8 ~ 11/2 這 118 天的不重複時間軸，並塞入當天出團狀態與事件
+  // ERP 智慧核心演算法
   const generateTimeline = () => {
     const timelineMap: { [dateStr: string]: { activeTours: string[]; events: LogEvent[] } } = {};
     
-    // 初始化 118 天的空物件
     let current = new Date("2026-07-08");
     const end = new Date("2026-11-02");
     while (current <= end) {
@@ -160,7 +174,6 @@ export default function QuarterlyLogPage() {
       current.setDate(current.getDate() + 1);
     }
 
-    // 1. 動態鋪設各產品團期的出團甘特色塊屬性 (Day 1 ~ Day N)
     tours.forEach((t) => {
       if (!t.出發日期 || !t.天數) return;
       const days = parseInt(t.天數) || 3;
@@ -180,23 +193,19 @@ export default function QuarterlyLogPage() {
       }
     });
 
-    // 2. 塞入人員手動編輯的大量事件
     logs.forEach((log) => {
       if (log.日期 && timelineMap[log.日期]) {
         timelineMap[log.日期].events.push(log);
       }
     });
 
-    // 3. 套用主管的高級「月份/團期」聯集過濾
     return Object.entries(timelineMap)
       .map(([date, data]) => ({ date, ...data }))
       .filter((day) => {
-        // 月份篩選
         if (filterMonth !== "all") {
           const m = day.date.substring(5, 7);
           if (m !== filterMonth) return false;
         }
-        // 團期篩選
         if (filterTour !== "all") {
           const hasTourActive = day.activeTours.some(t => t.startsWith(filterTour));
           const hasTourLogged = day.events.some(e => e.關聯團號 === filterTour);
@@ -280,7 +289,7 @@ export default function QuarterlyLogPage() {
         }`}>
           {syncStatus === "saving" && "⏳ 正在將新調度事件同步至 Google 試算表基底..."}
           {syncStatus === "success" && "🌲 雲端 ERP 數據已實時存檔完畢"}
-          {syncStatus === "error" && "❌ 雲端同步失敗，請檢查高山連線"}
+          {syncStatus === "error" && "❌ 雲端同步失敗，請檢查網路連線"}
           {syncStatus === "idle" && "🌿 岳野營運數據安全對接中 (7/8 - 11/2)"}
         </div>
       </div>
@@ -290,7 +299,6 @@ export default function QuarterlyLogPage() {
         {/* ================= 區塊一：季度工作日誌一覽表 (Review) ================= */}
         {subView === "review" && (
           <div className="space-y-4">
-            {/* 高級聯集高級過濾面板 */}
             <div className="bg-white border border-stone-200 p-4 rounded-2xl shadow-sm space-y-3">
               <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Advanced Filter Panel</p>
               <div className="grid grid-cols-2 gap-2">
@@ -325,22 +333,19 @@ export default function QuarterlyLogPage() {
               </div>
             </div>
 
-            {/* 時間軸大面板 */}
             <div className="space-y-3.5">
               {timelineData.map((day) => {
                 const hasSomething = day.activeTours.length > 0 || day.events.length > 0;
-                if (!hasSomething) return null; // 聰明優化：沒有安排的日期自動隱藏，畫面上只看精華工作！
+                if (!hasSomething) return null;
 
                 return (
                   <div key={day.date} className="bg-white border border-stone-200 rounded-2xl shadow-xs overflow-hidden">
-                    {/* 日期與出團甘特橫條頭 */}
                     <div className="bg-stone-50 border-b border-stone-100 px-4 py-3 flex flex-col gap-1.5">
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-black text-stone-800 tracking-wide">{day.date}</span>
                         <span className="text-[10px] text-stone-400 font-bold">工作調度</span>
                       </div>
                       
-                      {/* 當天線上的所有團期佔位 */}
                       {day.activeTours.length > 0 && (
                         <div className="flex flex-wrap gap-1">
                           {day.activeTours.map((t, idx) => (
@@ -352,7 +357,6 @@ export default function QuarterlyLogPage() {
                       )}
                     </div>
 
-                    {/* 當天的大量工作事件牆卡片 */}
                     <div className="p-3 space-y-2.5">
                       {day.events.length === 0 ? (
                         <p className="text-[11px] text-stone-400 italic pl-1 py-1">本日尚無新增事件日誌說明</p>
@@ -497,7 +501,7 @@ export default function QuarterlyLogPage() {
               <select
                 value={formTourName}
                 onChange={(e) => setFormTourName(e.target.value)}
-                className="w-full border-2 border-stone-200 rounded-xl px-3 py-2.5 font-bold text-stone-800 bg-stone-50"
+                className="w-full border-2 border-stone-200 rounded-xl px-3 py-2.5 font-bold text-stone-800 bg-stone-50 focus:outline-none focus:border-emerald-600"
               >
                 <option value="富士山三日團">🗻 富士山三日團</option>
                 <option value="富士山五日團">🇯🇵 富士山五日團</option>
@@ -505,35 +509,55 @@ export default function QuarterlyLogPage() {
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            {/* 🌟 核心防呆亮點：當選擇「日本登山系列團」時，動態彈出確切活動名稱輸入框 */}
+            {formTourName === "日本登山系列團" && (
+              <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 mt-2 transition-all">
+                <label className="text-xs font-black text-emerald-800 block mb-1">🎯 確切活動名稱 (必填)</label>
+                <input
+                  type="text"
+                  placeholder="例如：槍岳表銀座、北阿爾卑斯健行..."
+                  value={formCustomActivityName}
+                  onChange={(e) => setFormCustomActivityName(e.target.value)}
+                  className="w-full border-2 border-emerald-200 rounded-xl px-3 py-2 font-bold text-stone-800 focus:outline-none focus:border-emerald-600 bg-white"
+                />
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-2 pt-2">
               <div>
-                <label className="text-xs font-black text-stone-700 block mb-1">出发日期</label>
+                <label className="text-xs font-black text-stone-700 block mb-1">出發日期</label>
                 <input
                   type="date"
                   min="2026-07-08"
                   max="2026-11-02"
                   value={formTourDate}
                   onChange={(e) => setFormTourDate(e.target.value)}
-                  className="w-full border-2 border-stone-200 rounded-xl px-3 py-2 font-bold text-stone-800 bg-stone-50 text-xs"
+                  className="w-full border-2 border-stone-200 rounded-xl px-3 py-2 font-bold text-stone-800 bg-stone-50 text-xs focus:outline-none focus:border-emerald-600"
                 />
               </div>
               <div>
                 <label className="text-xs font-black text-stone-700 block mb-1">出團總天數</label>
+                {/* 🌟 擴充亮點：天數級距擴充為 3 ~ 10 天 */}
                 <select
                   value={formTourDays}
                   onChange={(e) => setFormTourDays(e.target.value)}
-                  className="w-full border-2 border-stone-200 rounded-xl px-3 py-2 font-bold text-stone-800 bg-stone-50 text-xs"
+                  className="w-full border-2 border-stone-200 rounded-xl px-3 py-2 font-bold text-stone-800 bg-stone-50 text-xs focus:outline-none focus:border-emerald-600"
                 >
                   <option value="3">3 天 (常規行程)</option>
-                  <option value="4">4 天 (深度探索)</option>
-                  <option value="5">5 天 (極致縱走)</option>
+                  <option value="4">4 天</option>
+                  <option value="5">5 天</option>
+                  <option value="6">6 天</option>
+                  <option value="7">7 天</option>
+                  <option value="8">8 天</option>
+                  <option value="9">9 天</option>
+                  <option value="10">10 天</option>
                 </select>
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-xl shadow-md transition-all active:scale-95 text-center text-sm"
+              className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-xl shadow-md transition-all active:scale-95 text-center text-sm mt-2"
             >
               🚀 成立全新產品梯次並發布 ➔
             </button>
