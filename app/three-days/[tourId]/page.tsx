@@ -23,8 +23,9 @@ export default function TourDashboardPage() {
   const [dropoffStats, setDropoffStats] = useState<{ [key: string]: number }>({});
   const [roomTypeStats, setRoomTypeStats] = useState<{ [key: string]: number }>({});
 
-  // 🌟 新增：用來記錄嚮導目前點擊篩選了哪一種餐點
   const [selectedMealFilter, setSelectedMealFilter] = useState<string | null>(null);
+  // 🌟 新增：用來記錄嚮導目前點擊篩選了哪一個下車地點
+  const [selectedDropoffFilter, setSelectedDropoffFilter] = useState<string | null>(null);
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
 
@@ -169,6 +170,24 @@ export default function TourDashboardPage() {
     );
   }
 
+  // === 報到篩選、進度與「未報到置頂」運算 ===
+  const displayedCheckins = selectedDropoffFilter
+    ? memberData.filter(m => (m.下車地點 ? String(m.下車地點).trim() : "未填寫") === selectedDropoffFilter)
+    : [...memberData]; // 複製一份用來排序
+
+  // 🌟 自動排序：未報到(FALSE/undefined)的排在最上面，已報到(TRUE)的沉到下面
+  displayedCheckins.sort((a, b) => {
+    const aChecked = a.報到狀態 === "TRUE";
+    const bChecked = b.報到狀態 === "TRUE";
+    if (aChecked === bChecked) return 0;
+    return aChecked ? 1 : -1;
+  });
+
+  const checkinTotal = displayedCheckins.length;
+  const checkinDone = displayedCheckins.filter(m => m.報到狀態 === "TRUE").length;
+  const checkinRemain = checkinTotal - checkinDone;
+  const checkinPercent = checkinTotal === 0 ? 0 : Math.round((checkinDone / checkinTotal) * 100);
+
   // === 裝備進度運算 ===
   const equipmentMembers = memberData.filter((m) => m.裝備明細 && m.裝備明細.trim() !== "" && m.裝備明細 !== "無");
   const equipTotal = equipmentMembers.length;
@@ -185,6 +204,7 @@ export default function TourDashboardPage() {
   const mealRemain = mealTotal - mealGiven;
   const mealPercent = mealTotal === 0 ? 0 : Math.round((mealGiven / mealTotal) * 100);
 
+
   return (
     <main className="min-h-screen bg-stone-100 flex flex-col items-center pb-12">
       {/* 頂部導覽列 */}
@@ -194,7 +214,7 @@ export default function TourDashboardPage() {
           <h1 className="text-lg font-black text-emerald-50 mt-1 tracking-wide">
             {view === "menu" && "岳野嚮導工作台"}
             {view === "groupDetail" && "🥾 團隊分組總覽"}
-            {view === "checkin" && "📋 報到基本資料與現場備註"}
+            {view === "checkin" && "📋 報到點名與接駁確認"}
             {view === "equipment" && "🎒 裝備借出與問題回報"}
             {view === "meals" && "🍱 餐點發放統計與名單"}
             {view === "rooms" && "🏨 飯店分房登記"}
@@ -204,7 +224,7 @@ export default function TourDashboardPage() {
         {view === "menu" ? (
           <Link href="/three-days" className="text-emerald-100 text-xs font-bold bg-emerald-900/60 border border-emerald-800 px-4 py-2 rounded-xl active:scale-95 transition-all">返回列表</Link>
         ) : (
-          <button onClick={() => { setView("menu"); setSelectedMealFilter(null); }} className="text-emerald-950 text-xs font-black bg-amber-400 px-4 py-2 rounded-xl active:scale-95 transition-all shadow-sm">↩ 返回選單</button>
+          <button onClick={() => { setView("menu"); setSelectedMealFilter(null); setSelectedDropoffFilter(null); }} className="text-emerald-950 text-xs font-black bg-amber-400 px-4 py-2 rounded-xl active:scale-95 transition-all shadow-sm">↩ 返回選單</button>
         )}
       </div>
 
@@ -239,8 +259,8 @@ export default function TourDashboardPage() {
 
             <button onClick={() => setView("checkin")} className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-stone-200 active:scale-[0.98] transition-all hover:border-emerald-300">
               <div className="text-left">
-                <h2 className="text-lg font-black text-stone-800">📋 報到與基本資料 (含現場備註)</h2>
-                <p className="text-xs text-stone-500 mt-1">點名報到、並可直接修改／填寫客人現場備註</p>
+                <h2 className="text-lg font-black text-stone-800">📋 報到點名與接駁確認</h2>
+                <p className="text-xs text-stone-500 mt-1">未到人員置頂、地點快速過濾與現場備註</p>
               </div>
               <span className="text-xl text-emerald-700 font-bold">➔</span>
             </button>
@@ -256,7 +276,7 @@ export default function TourDashboardPage() {
             <button onClick={() => setView("meals")} className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-stone-200 active:scale-[0.98] transition-all hover:border-emerald-300">
               <div className="text-left">
                 <h2 className="text-lg font-black text-stone-800">🍱 登山口餐點發放</h2>
-                <p className="text-xs text-stone-500 mt-1">餐點數量自動統計、餐食領取點收</p>
+                <p className="text-xs text-stone-500 mt-1">餐點分類篩選、自動進度條與發放點收</p>
               </div>
               <span className="text-xl text-emerald-700 font-bold">➔</span>
             </button>
@@ -320,81 +340,134 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 📋 報到與基本資料 ================= */}
+        {/* ================= 📋 報到點名與接駁確認 (🌟 新增過濾、置頂與進度條) ================= */}
         {view === "checkin" && (
           <div className="space-y-4">
+            
+            {/* 🌟 篩選與進度看板 */}
             <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800">
-              <p className="text-[9px] text-emerald-400 font-black tracking-widest uppercase">Drop-off Automation Stats</p>
-              <h3 className="text-sm font-black text-emerald-100 mt-0.5 mb-3">📍 下車接駁地點人次加總</h3>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.entries(dropoffStats).map(([loc, count]) => (
-                  <div key={loc} className="bg-stone-950/40 border border-emerald-800/40 p-2.5 rounded-xl flex justify-between items-center">
-                    <span className="text-xs font-bold text-stone-300 truncate mr-1">{loc}</span>
-                    <span className="text-base font-black text-amber-400 whitespace-nowrap">{count} <span className="text-[10px] text-stone-400 font-bold">人</span></span>
+              <div className="flex justify-between items-end mb-3">
+                <div>
+                  <p className="text-[9px] text-emerald-400 font-black tracking-widest uppercase">Drop-off Filter & Stats</p>
+                  <h3 className="text-sm font-black text-emerald-100 mt-0.5">📍 點擊下方地點可快速篩選名單</h3>
+                </div>
+                {selectedDropoffFilter && (
+                  <button onClick={() => setSelectedDropoffFilter(null)} className="text-[10px] bg-stone-700/80 hover:bg-stone-600 text-stone-200 px-2 py-1 rounded-md border border-stone-500 transition-all active:scale-95">
+                    ✖ 取消篩選
+                  </button>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {Object.entries(dropoffStats).map(([loc, count]) => {
+                  const isSelected = selectedDropoffFilter === loc;
+                  return (
+                    <button 
+                      key={loc} 
+                      onClick={() => setSelectedDropoffFilter(isSelected ? null : loc)}
+                      className={`p-2.5 rounded-xl flex justify-between items-center transition-all active:scale-95 text-left
+                        ${isSelected 
+                          ? "bg-emerald-700 border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-lg" 
+                          : "bg-stone-950/40 border border-emerald-800/40 opacity-80 hover:opacity-100"}`}
+                    >
+                      <span className={`text-xs font-bold truncate mr-1 ${isSelected ? "text-white" : "text-stone-300"}`}>{loc}</span>
+                      <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-amber-300" : "text-amber-500"}`}>
+                        {count} <span className="text-[10px] font-bold opacity-70">人</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 報到進度條 */}
+              <div className="bg-stone-950/40 p-3 rounded-xl border border-emerald-800/40">
+                <div className="flex justify-between items-end mb-1.5">
+                  <span className="text-xs text-stone-300 font-bold">
+                    {selectedDropoffFilter ? `「${selectedDropoffFilter}」報到進度` : "全團總報到進度"}
+                  </span>
+                  <div className="text-right leading-none">
+                    <span className="text-lg font-black text-emerald-400">{checkinDone}</span>
+                    <span className="text-[10px] text-stone-500 font-bold mx-1">/</span>
+                    <span className="text-xs font-bold text-stone-400">{checkinTotal}</span>
                   </div>
-                ))}
+                </div>
+                <div className="w-full bg-stone-800 rounded-full h-2">
+                  <div className={`h-2 rounded-full transition-all duration-500 ease-out ${checkinRemain === 0 && checkinTotal > 0 ? "bg-amber-400" : "bg-emerald-500"}`} style={{ width: `${checkinPercent}%` }}></div>
+                </div>
               </div>
             </div>
 
-            {memberData.map((member, idx) => {
-              const isVegetarian = String(member.病史 || "").includes("素") || String(member.五合目餐點 || "").includes("素");
-              return (
-                <div key={idx} className="bg-white border border-stone-200 p-4 rounded-2xl shadow-sm space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-black text-stone-800">{member.姓名}</h3>
-                        {isVegetarian && <span className="text-[10px] bg-emerald-600 text-white font-black px-1.5 py-0.5 rounded-md">🥬 素食</span>}
+            {displayedCheckins.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-stone-400 text-sm font-bold">查無符合條件的名單</p>
+              </div>
+            ) : (
+              displayedCheckins.map((member, _idx) => {
+                // 🌟 重要：因為清單被排序和過濾過，必須去 memberData 找回它原本的 index 才能正確存檔
+                const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
+                const isVegetarian = String(member.病史 || "").includes("素") || String(member.五合目餐點 || "").includes("素");
+                const isCheckedIn = member.報到狀態 === "TRUE";
+
+                return (
+                  <div key={originalIdx} className={`bg-white border-2 p-4 rounded-2xl shadow-sm space-y-3 transition-colors ${isCheckedIn ? "border-stone-200/50 opacity-80" : "border-emerald-500/50 shadow-md"}`}>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-black text-stone-800">{member.姓名}</h3>
+                          {!isCheckedIn && <span className="text-[10px] bg-red-100 text-red-700 font-black px-1.5 py-0.5 rounded-md animate-pulse">待報到</span>}
+                          {isVegetarian && <span className="text-[10px] bg-emerald-600 text-white font-black px-1.5 py-0.5 rounded-md">🥬 素食</span>}
+                        </div>
+                        <p className="text-xs text-stone-500 font-medium mt-1">📱 手機：{member.手機 || "無"}</p>
                       </div>
-                      <p className="text-xs text-stone-500 font-medium mt-1">📱 手機：{member.手機 || "無"}</p>
+                      <span className="bg-stone-100 text-stone-600 text-xs px-2.5 py-1 rounded-lg font-bold border border-stone-200">{member.分組 || "未編組"}</span>
                     </div>
-                    <span className="bg-stone-100 text-stone-600 text-xs px-2.5 py-1 rounded-lg font-bold border border-stone-200">{member.分組 || "未編組"}</span>
-                  </div>
 
-                  {member.病史 && (
-                    <div className="bg-orange-50 border border-orange-200 text-orange-800 text-xs p-2.5 rounded-xl font-bold">
-                      ⚠️ 後台備註/病史：{member.病史}
-                    </div>
-                  )}
+                    {member.病史 && (
+                      <div className="bg-orange-50 border border-orange-200 text-orange-800 text-xs p-2.5 rounded-xl font-bold">
+                        ⚠️ 後台備註/病史：{member.病史}
+                      </div>
+                    )}
 
-                  <div className="pt-1">
-                    <label className="text-[10px] font-black text-stone-400 block mb-1 pl-1">📝 現場工作人員備註 (打完點旁邊自動儲存)</label>
-                    <input
-                      type="text"
-                      placeholder="現場追加註記..."
-                      value={member.備註 || ""}
-                      onChange={(e) => handleLocalTextChange(idx, "備註", e.target.value)}
-                      onBlur={(e) => handleMemberFieldUpdate(idx, "備註", e.target.value)}
-                      className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-600 bg-stone-50 text-stone-800 shadow-inner"
-                    />
-                  </div>
-
-                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex justify-between items-center mt-1">
-                    <div>
-                      <p className="text-[10px] text-emerald-700 font-black mb-0.5">📍 下車地點</p>
-                      <p className="text-sm font-black text-stone-700">{member.下車地點 || "未填寫"}</p>
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-lg border border-emerald-200 shadow-sm active:scale-95 transition-all">
-                      <input 
-                        type="checkbox" 
-                        className="w-5 h-5 rounded text-emerald-700" 
-                        checked={member.報到狀態 === "TRUE"} 
-                        onChange={(e) => handleMemberFieldUpdate(idx, "報到狀態", e.target.checked ? "TRUE" : "FALSE")}
+                    <div className="pt-1">
+                      <label className="text-[10px] font-black text-stone-400 block mb-1 pl-1">📝 現場工作人員備註 (打完點旁邊自動儲存)</label>
+                      <input
+                        type="text"
+                        placeholder="現場追加註記..."
+                        value={member.備註 || ""}
+                        onChange={(e) => handleLocalTextChange(originalIdx, "備註", e.target.value)}
+                        onBlur={(e) => handleMemberFieldUpdate(originalIdx, "備註", e.target.value)}
+                        className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-3 py-2 focus:outline-none focus:border-emerald-600 bg-stone-50 text-stone-800 shadow-inner"
                       />
-                      <span className="font-black text-emerald-900 text-sm">已報到</span>
-                    </label>
+                    </div>
+
+                    <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 flex justify-between items-center mt-1">
+                      <div>
+                        <p className="text-[10px] text-emerald-700 font-black mb-0.5">📍 下車地點</p>
+                        <p className="text-sm font-black text-stone-700">{member.下車地點 || "未填寫"}</p>
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-lg border border-emerald-200 shadow-sm active:scale-95 transition-all">
+                        <input 
+                          type="checkbox" 
+                          className="w-5 h-5 rounded text-emerald-700" 
+                          checked={isCheckedIn} 
+                          onChange={(e) => handleMemberFieldUpdate(originalIdx, "報到狀態", e.target.checked ? "TRUE" : "FALSE")}
+                        />
+                        <span className={`font-black text-sm ${isCheckedIn ? "text-emerald-900" : "text-stone-400"}`}>
+                          {isCheckedIn ? "已報到" : "確認報到"}
+                        </span>
+                      </label>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         )}
 
-        {/* ================= 🎒 4. 裝備確認 (新增裝備進度條) ================= */}
+        {/* ================= 🎒 4. 裝備確認 ================= */}
         {view === "equipment" && (
           <div className="space-y-4">
             
-            {/* 🌟 新增：裝備發放動態進度條 */}
             <div className="bg-white border border-stone-200 p-4 rounded-2xl shadow-sm mb-4">
               <div className="flex justify-between items-end mb-2">
                 <div>
@@ -463,11 +536,10 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🍱 5. 登山口餐點 (新增一鍵篩選與進度條) ================= */}
+        {/* ================= 🍱 5. 登山口餐點 ================= */}
         {view === "meals" && (
           <div className="space-y-4">
             
-            {/* 🌟 新增：餐點一鍵點擊篩選與統計面板 */}
             <div className="bg-gradient-to-br from-emerald-900 to-stone-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800">
               <div className="flex justify-between items-end mb-3">
                 <div>
@@ -502,7 +574,6 @@ export default function TourDashboardPage() {
                 })}
               </div>
 
-              {/* 🌟 新增：連動餐點發放動態進度條 */}
               <div className="bg-stone-950/40 p-3 rounded-xl border border-emerald-800/40">
                 <div className="flex justify-between items-end mb-1.5">
                   <span className="text-xs text-stone-300 font-bold">
@@ -525,11 +596,11 @@ export default function TourDashboardPage() {
                 <p className="text-stone-400 text-sm font-bold">查無符合條件的餐點名單</p>
               </div>
             ) : (
-              displayedMeals.map((member, idx) => {
+              displayedMeals.map((member, _idx) => {
                 const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
                 const isVegetarian = String(member.病史 || "").includes("素") || String(member.五合目餐點 || "").includes("素");
                 return (
-                  <div key={idx} className="bg-white border border-stone-200 p-4 rounded-2xl shadow-sm">
+                  <div key={originalIdx} className="bg-white border border-stone-200 p-4 rounded-2xl shadow-sm">
                     <div className="flex justify-between items-center border-b border-stone-100 pb-2 mb-3">
                       <div className="flex items-center gap-2">
                         <h3 className="text-base font-black text-stone-800">{member.姓名}</h3>
