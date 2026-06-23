@@ -24,15 +24,23 @@ export default function QuarterlyLogPage() {
   const [subView, setSubView] = useState<SubView>("review");
   const [loading, setLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // 資料庫資料
   const [tours, setTours] = useState<Tour[]>([]);
   const [logs, setLogs] = useState<LogEvent[]>([]);
 
+  // 🌟 新增：編輯模式的 State 控制
+  const [editingLog, setEditingLog] = useState<LogEvent | null>(null);
+  const [editFormDate, setEditFormDate] = useState("");
+  const [editFormTag, setEditFormTag] = useState("");
+  const [editFormTourId, setEditFormTourId] = useState("");
+  const [editFormPerson, setEditFormPerson] = useState("");
+  const [editFormNotes, setEditFormNotes] = useState("");
+
   // 建團表單
   const [formTourId, setFormTourId] = useState("");
   const [formTourName, setFormTourName] = useState("富士山三日團");
-  // 🌟 新增：針對日本登山系列團的客製化活動名稱
   const [formCustomActivityName, setFormCustomActivityName] = useState("");
   const [formTourDate, setFormTourDate] = useState("2026-07-08");
   const [formTourDays, setFormTourDays] = useState("3");
@@ -72,15 +80,13 @@ export default function QuarterlyLogPage() {
     fetchLogSystemData();
   }, []);
 
-  // 動作：獨立建團儲存
+  // ==================== [建團功能] ====================
   const handleCreateTour = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTourId.trim()) {
       alert("請輸入團號！");
       return;
     }
-    
-    // 🌟 防呆：如果選了日本登山系列團，強制要求輸入活動名稱
     if (formTourName === "日本登山系列團" && !formCustomActivityName.trim()) {
       alert("請輸入確切活動名稱（如：槍岳表銀座）！");
       return;
@@ -88,8 +94,6 @@ export default function QuarterlyLogPage() {
 
     try {
       setSyncStatus("saving");
-
-      // 🌟 智慧組合：不用修改資料庫欄位，直接把自訂名稱接在團名後面
       let finalTourName = formTourName;
       if (formTourName === "日本登山系列團") {
         finalTourName = `日本登山系列團 - ${formCustomActivityName.trim()}`;
@@ -111,7 +115,7 @@ export default function QuarterlyLogPage() {
       if (res.ok) {
         setSyncStatus("success");
         setFormTourId("");
-        setFormCustomActivityName(""); // 清空自訂名稱
+        setFormCustomActivityName("");
         await fetchLogSystemData();
         setSubView("review");
       } else {
@@ -122,7 +126,7 @@ export default function QuarterlyLogPage() {
     }
   };
 
-  // 動作：新增事件日誌
+  // ==================== [新增日誌功能] ====================
   const handleCreateLog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formLogNotes.trim()) {
@@ -159,7 +163,82 @@ export default function QuarterlyLogPage() {
     }
   };
 
-  // ERP 智慧核心演算法
+  // ==================== 🌟 [編輯日誌功能] ====================
+  const openEditModal = (log: LogEvent) => {
+    setEditingLog(log);
+    setEditFormDate(log.日期 || "");
+    setEditFormTag(log.標籤分類 || "");
+    setEditFormTourId(log.關聯團號 || "");
+    setEditFormPerson(log.關聯人員 || "");
+    setEditFormNotes(log.詳細備註 || "");
+  };
+
+  const closeEditModal = () => {
+    setEditingLog(null);
+  };
+
+  const handleUpdateLog = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLog || !editFormNotes.trim()) return;
+
+    try {
+      setSyncStatus("saving");
+      const payload = {
+        日期: editFormDate,
+        標籤分類: editFormTag,
+        關聯團號: editFormTourId,
+        關聯人員: editFormPerson.trim(),
+        詳細備註: editFormNotes.trim()
+      };
+
+      // 透過原本的「詳細備註」來尋找並覆寫更新那一列
+      const res = await fetch(`${SHEETDB_URL}/詳細備註/${encodeURIComponent(editingLog.詳細備註)}?sheet=營運日誌總表`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: payload })
+      });
+
+      if (res.ok) {
+        setSyncStatus("success");
+        await fetchLogSystemData();
+        closeEditModal();
+      } else {
+        setSyncStatus("error");
+        alert("更新失敗，請檢查網路。");
+      }
+    } catch (err) {
+      setSyncStatus("error");
+      console.error(err);
+    }
+  };
+
+  // ==================== 🌟 [刪除日誌功能] ====================
+  const handleDeleteLog = async (log: LogEvent) => {
+    if (!confirm("確定要刪除這筆工作安排嗎？刪除後無法復原！")) return;
+
+    try {
+      setIsDeleting(true);
+      setSyncStatus("saving");
+      
+      const res = await fetch(`${SHEETDB_URL}/詳細備註/${encodeURIComponent(log.詳細備註)}?sheet=營運日誌總表`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        setSyncStatus("success");
+        await fetchLogSystemData();
+      } else {
+        setSyncStatus("error");
+        alert("刪除失敗！");
+      }
+    } catch (err) {
+      setSyncStatus("error");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // ERP 智慧核心演算法 (鋪設時間軸)
   const generateTimeline = () => {
     const timelineMap: { [dateStr: string]: { activeTours: string[]; events: LogEvent[] } } = {};
     
@@ -228,7 +307,7 @@ export default function QuarterlyLogPage() {
   const timelineData = generateTimeline();
 
   return (
-    <main className="min-h-screen bg-stone-100 flex flex-col items-center pb-12">
+    <main className="min-h-screen bg-stone-100 flex flex-col items-center pb-12 relative">
       {/* 頂部導覽列 */}
       <div className="w-full bg-stone-900 text-white py-4 px-6 sticky top-0 z-20 flex items-center justify-between shadow-lg border-b border-amber-500/40">
         <div>
@@ -287,8 +366,8 @@ export default function QuarterlyLogPage() {
           syncStatus === "success" ? "bg-emerald-800 text-emerald-50 border-emerald-700" :
           syncStatus === "error" ? "bg-orange-100 text-orange-800 border-orange-200" : "bg-stone-200 text-stone-500"
         }`}>
-          {syncStatus === "saving" && "⏳ 正在將新調度事件同步至 Google 試算表基底..."}
-          {syncStatus === "success" && "🌲 雲端 ERP 數據已實時存檔完畢"}
+          {syncStatus === "saving" && "⏳ 正在與 Google 雲端試算表雙向同步中..."}
+          {syncStatus === "success" && "🌲 雲端 ERP 數據已實時更新完畢"}
           {syncStatus === "error" && "❌ 雲端同步失敗，請檢查網路連線"}
           {syncStatus === "idle" && "🌿 岳野營運數據安全對接中 (7/8 - 11/2)"}
         </div>
@@ -333,7 +412,7 @@ export default function QuarterlyLogPage() {
               </div>
             </div>
 
-            <div className="space-y-3.5">
+            <div className="space-y-3.5 pb-10">
               {timelineData.map((day) => {
                 const hasSomething = day.activeTours.length > 0 || day.events.length > 0;
                 if (!hasSomething) return null;
@@ -362,9 +441,10 @@ export default function QuarterlyLogPage() {
                         <p className="text-[11px] text-stone-400 italic pl-1 py-1">本日尚無新增事件日誌說明</p>
                       ) : (
                         day.events.map((e, idx) => (
-                          <div key={idx} className="bg-stone-50/70 border border-stone-200 p-3 rounded-xl space-y-1.5">
+                          <div key={idx} className="bg-stone-50/70 border border-stone-200 p-3 rounded-xl space-y-2 relative">
+                            {/* 標籤列 */}
                             <div className="flex flex-wrap justify-between items-center gap-1">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 pr-14">
                                 <span className="text-[10px] font-black bg-amber-400 text-stone-950 px-2 py-0.5 rounded-md">
                                   {e.標籤分類}
                                 </span>
@@ -374,15 +454,38 @@ export default function QuarterlyLogPage() {
                                   </span>
                                 )}
                               </div>
-                              {e.關聯人員 && (
-                                <span className="text-xs font-black text-stone-700">
-                                  👤 派員：{e.關聯人員}
-                                </span>
-                              )}
                             </div>
-                            <p className="text-xs font-bold text-stone-700 leading-relaxed whitespace-pre-wrap pl-0.5">
-                              {e.詳細備註}
-                            </p>
+                            
+                            {/* 備註內容 */}
+                            <div>
+                              {e.關聯人員 && (
+                                <p className="text-[10px] font-black text-emerald-800 mb-1">
+                                  👤 派員：{e.關聯人員}
+                                </p>
+                              )}
+                              <p className="text-xs font-bold text-stone-700 leading-relaxed whitespace-pre-wrap pl-0.5">
+                                {e.詳細備註}
+                              </p>
+                            </div>
+
+                            {/* 🌟 編輯與刪除按鈕 */}
+                            <div className="border-t border-stone-200/60 pt-2 mt-1 flex justify-end gap-2">
+                              <button 
+                                onClick={() => openEditModal(e)}
+                                disabled={isDeleting}
+                                className="text-[10px] font-black text-stone-500 bg-white border border-stone-200 hover:border-emerald-400 hover:text-emerald-700 px-3 py-1.5 rounded-lg transition-all active:scale-95 shadow-sm"
+                              >
+                                ✏️ 編輯修改
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteLog(e)}
+                                disabled={isDeleting}
+                                className="text-[10px] font-black text-stone-500 bg-white border border-stone-200 hover:border-red-400 hover:text-red-600 px-3 py-1.5 rounded-lg transition-all active:scale-95 shadow-sm"
+                              >
+                                🗑️ 刪除紀錄
+                              </button>
+                            </div>
+
                           </div>
                         ))
                       )}
@@ -394,7 +497,7 @@ export default function QuarterlyLogPage() {
           </div>
         )}
 
-        {/* ================= 區塊二：工作日誌設定 (每日安排) ================= */}
+        {/* ================= 區塊二：工作日誌設定 (每日安排新增) ================= */}
         {subView === "settings" && (
           <form onSubmit={handleCreateLog} className="bg-white border border-stone-200 p-5 rounded-2xl shadow-sm space-y-4">
             <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Log Event Factory</p>
@@ -458,7 +561,7 @@ export default function QuarterlyLogPage() {
             </div>
 
             <div>
-              <label className="text-xs font-black text-stone-700 block mb-1">📝 詳細調度與交接備註 (支援輸入大量文字)</label>
+              <label className="text-xs font-black text-stone-700 block mb-1">📝 詳細調度與交接備註 (支援大量文字)</label>
               <textarea
                 rows={5}
                 placeholder="請輸入當天該標籤項目的具體飯店確認狀況、車輛航班變動或詳細人力交接事項..."
@@ -472,7 +575,7 @@ export default function QuarterlyLogPage() {
               type="submit"
               className="w-full bg-stone-900 hover:bg-stone-800 text-amber-400 font-black py-4 rounded-xl shadow-md transition-all active:scale-95 text-center text-sm"
             >
-              💾 儲存本日事件回傳雲端 ➔
+              ➕ 儲存本日事件回傳雲端 ➔
             </button>
           </form>
         )}
@@ -509,7 +612,6 @@ export default function QuarterlyLogPage() {
               </select>
             </div>
 
-            {/* 🌟 核心防呆亮點：當選擇「日本登山系列團」時，動態彈出確切活動名稱輸入框 */}
             {formTourName === "日本登山系列團" && (
               <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 mt-2 transition-all">
                 <label className="text-xs font-black text-emerald-800 block mb-1">🎯 確切活動名稱 (必填)</label>
@@ -537,7 +639,6 @@ export default function QuarterlyLogPage() {
               </div>
               <div>
                 <label className="text-xs font-black text-stone-700 block mb-1">出團總天數</label>
-                {/* 🌟 擴充亮點：天數級距擴充為 3 ~ 10 天 */}
                 <select
                   value={formTourDays}
                   onChange={(e) => setFormTourDays(e.target.value)}
@@ -565,6 +666,107 @@ export default function QuarterlyLogPage() {
         )}
 
       </div>
+
+      {/* ================= 🌟 [編輯日誌的浮動視窗 Modal] ================= */}
+      {editingLog && (
+        <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            
+            <div className="bg-stone-900 text-amber-400 p-4 flex justify-between items-center border-b-2 border-amber-500">
+              <span className="font-black tracking-widest text-sm">✏️ 編輯調度日誌</span>
+              <button onClick={closeEditModal} className="text-stone-400 hover:text-white text-lg font-black transition-colors">✖</button>
+            </div>
+            
+            <div className="p-5 overflow-y-auto bg-stone-100">
+              <form onSubmit={handleUpdateLog} className="space-y-4">
+                
+                <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm space-y-3">
+                  <div>
+                    <label className="text-xs font-black text-stone-700 block mb-1">📅 調度日期</label>
+                    <input
+                      type="date"
+                      min="2026-07-08"
+                      max="2026-11-02"
+                      value={editFormDate}
+                      onChange={(e) => setEditFormDate(e.target.value)}
+                      className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 font-bold text-stone-800 focus:outline-none focus:border-amber-500 bg-stone-50"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-black text-stone-700 block mb-1">🏷️ 標籤分類</label>
+                    <select
+                      value={editFormTag}
+                      onChange={(e) => setEditFormTag(e.target.value)}
+                      className="w-full border-2 border-stone-200 rounded-lg px-3 py-2 font-bold text-stone-800 focus:outline-none focus:border-amber-500 bg-stone-50"
+                    >
+                      <option value="飯店預約">飯店預約</option>
+                      <option value="活動/交通">活動/交通</option>
+                      <option value="人力排班">人力排班</option>
+                      <option value="航班狀況">航班狀況</option>
+                      <option value="休假住宿">休假住宿</option>
+                      <option value="團務交接">團務交接</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs font-black text-stone-700 block mb-1">🏔️ 關聯團號</label>
+                      <select
+                        value={editFormTourId}
+                        onChange={(e) => setEditFormTourId(e.target.value)}
+                        className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg px-2 py-2 bg-stone-50 text-stone-800"
+                      >
+                        <option value="">-- 無 --</option>
+                        {tours.map((t) => (
+                          <option key={t.團號} value={t.團號}>{t.團號}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-black text-stone-700 block mb-1">👤 關聯人員</label>
+                      <input
+                        type="text"
+                        value={editFormPerson}
+                        onChange={(e) => setEditFormPerson(e.target.value)}
+                        className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 text-stone-800 focus:outline-none focus:border-amber-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-black text-stone-700 block mb-1">📝 詳細備註</label>
+                    <textarea
+                      rows={5}
+                      value={editFormNotes}
+                      onChange={(e) => setEditFormNotes(e.target.value)}
+                      className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 text-stone-800 focus:outline-none focus:border-amber-500 shadow-inner"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={closeEditModal}
+                    className="w-1/3 bg-stone-300 hover:bg-stone-400 text-stone-700 font-black py-3.5 rounded-xl shadow-sm transition-all"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    className="w-2/3 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black py-3.5 rounded-xl shadow-md transition-all active:scale-95 border border-amber-600/50"
+                  >
+                    💾 儲存修改
+                  </button>
+                </div>
+
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
