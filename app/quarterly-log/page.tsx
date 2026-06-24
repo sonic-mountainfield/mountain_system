@@ -13,6 +13,7 @@ interface Tour {
 }
 
 interface LogEvent {
+  日誌ID?: string; // 🌟 新增：系統專屬身分證 (相容舊資料設為可選)
   日期: string;
   標籤分類: string;
   關聯團號: string;
@@ -30,7 +31,7 @@ export default function QuarterlyLogPage() {
   const [tours, setTours] = useState<Tour[]>([]);
   const [logs, setLogs] = useState<LogEvent[]>([]);
 
-  // 🌟 新增：編輯模式的 State 控制
+  // 編輯模式的 State 控制
   const [editingLog, setEditingLog] = useState<LogEvent | null>(null);
   const [editFormDate, setEditFormDate] = useState("");
   const [editFormTag, setEditFormTag] = useState("");
@@ -136,6 +137,7 @@ export default function QuarterlyLogPage() {
     try {
       setSyncStatus("saving");
       const payload = {
+        日誌ID: Date.now().toString(), // 🌟 核心防呆：產生獨一無二的身分證
         日期: formLogDate,
         標籤分類: formLogTag,
         關聯團號: formLogTourId,
@@ -184,6 +186,7 @@ export default function QuarterlyLogPage() {
     try {
       setSyncStatus("saving");
       const payload = {
+        日誌ID: editingLog.日誌ID || "", // 保持原ID不變
         日期: editFormDate,
         標籤分類: editFormTag,
         關聯團號: editFormTourId,
@@ -191,8 +194,12 @@ export default function QuarterlyLogPage() {
         詳細備註: editFormNotes.trim()
       };
 
-      // 透過原本的「詳細備註」來尋找並覆寫更新那一列
-      const res = await fetch(`${SHEETDB_URL}/詳細備註/${encodeURIComponent(editingLog.詳細備註)}?sheet=營運日誌總表`, {
+      // 🌟 智慧判斷：如果有日誌ID就用ID找，沒有（舊資料）才退回用備註找
+      const searchKey = editingLog.日誌ID 
+        ? `日誌ID/${editingLog.日誌ID}` 
+        : `詳細備註/${encodeURIComponent(editingLog.詳細備註)}`;
+
+      const res = await fetch(`${SHEETDB_URL}/${searchKey}?sheet=營運日誌總表`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: payload })
@@ -220,7 +227,11 @@ export default function QuarterlyLogPage() {
       setIsDeleting(true);
       setSyncStatus("saving");
       
-      const res = await fetch(`${SHEETDB_URL}/詳細備註/${encodeURIComponent(log.詳細備註)}?sheet=營運日誌總表`, {
+      const searchKey = log.日誌ID 
+        ? `日誌ID/${log.日誌ID}` 
+        : `詳細備註/${encodeURIComponent(log.詳細備註)}`;
+
+      const res = await fetch(`${SHEETDB_URL}/${searchKey}?sheet=營運日誌總表`, {
         method: "DELETE",
       });
 
@@ -329,6 +340,7 @@ export default function QuarterlyLogPage() {
       <div className="w-full max-w-md px-4 mt-4 grid grid-cols-3 gap-1.5">
         <button
           onClick={() => setSubView("review")}
+          disabled={syncStatus === "saving"}
           className={`py-3 text-xs font-black rounded-xl border transition-all text-center ${
             subView === "review"
               ? "bg-stone-900 text-amber-400 border-stone-950 shadow-sm"
@@ -339,6 +351,7 @@ export default function QuarterlyLogPage() {
         </button>
         <button
           onClick={() => setSubView("settings")}
+          disabled={syncStatus === "saving"}
           className={`py-3 text-xs font-black rounded-xl border transition-all text-center ${
             subView === "settings"
               ? "bg-stone-900 text-amber-400 border-stone-950 shadow-sm"
@@ -349,6 +362,7 @@ export default function QuarterlyLogPage() {
         </button>
         <button
           onClick={() => setSubView("backoffice")}
+          disabled={syncStatus === "saving"}
           className={`py-3 text-xs font-black rounded-xl border transition-all text-center ${
             subView === "backoffice"
               ? "bg-stone-900 text-amber-400 border-stone-950 shadow-sm"
@@ -442,7 +456,6 @@ export default function QuarterlyLogPage() {
                       ) : (
                         day.events.map((e, idx) => (
                           <div key={idx} className="bg-stone-50/70 border border-stone-200 p-3 rounded-xl space-y-2 relative">
-                            {/* 標籤列 */}
                             <div className="flex flex-wrap justify-between items-center gap-1">
                               <div className="flex items-center gap-1.5 pr-14">
                                 <span className="text-[10px] font-black bg-amber-400 text-stone-950 px-2 py-0.5 rounded-md">
@@ -456,7 +469,6 @@ export default function QuarterlyLogPage() {
                               </div>
                             </div>
                             
-                            {/* 備註內容 */}
                             <div>
                               {e.關聯人員 && (
                                 <p className="text-[10px] font-black text-emerald-800 mb-1">
@@ -468,19 +480,19 @@ export default function QuarterlyLogPage() {
                               </p>
                             </div>
 
-                            {/* 🌟 編輯與刪除按鈕 */}
+                            {/* 🌟 按鈕鎖死防呆：載入中禁止連點 */}
                             <div className="border-t border-stone-200/60 pt-2 mt-1 flex justify-end gap-2">
                               <button 
                                 onClick={() => openEditModal(e)}
-                                disabled={isDeleting}
-                                className="text-[10px] font-black text-stone-500 bg-white border border-stone-200 hover:border-emerald-400 hover:text-emerald-700 px-3 py-1.5 rounded-lg transition-all active:scale-95 shadow-sm"
+                                disabled={isDeleting || syncStatus === "saving"}
+                                className="text-[10px] font-black text-stone-500 bg-white border border-stone-200 hover:border-emerald-400 hover:text-emerald-700 px-3 py-1.5 rounded-lg transition-all active:scale-95 shadow-sm disabled:opacity-50"
                               >
                                 ✏️ 編輯修改
                               </button>
                               <button 
                                 onClick={() => handleDeleteLog(e)}
-                                disabled={isDeleting}
-                                className="text-[10px] font-black text-stone-500 bg-white border border-stone-200 hover:border-red-400 hover:text-red-600 px-3 py-1.5 rounded-lg transition-all active:scale-95 shadow-sm"
+                                disabled={isDeleting || syncStatus === "saving"}
+                                className="text-[10px] font-black text-stone-500 bg-white border border-stone-200 hover:border-red-400 hover:text-red-600 px-3 py-1.5 rounded-lg transition-all active:scale-95 shadow-sm disabled:opacity-50"
                               >
                                 🗑️ 刪除紀錄
                               </button>
@@ -561,21 +573,23 @@ export default function QuarterlyLogPage() {
             </div>
 
             <div>
-              <label className="text-xs font-black text-stone-700 block mb-1">📝 詳細調度與交接備註 (支援大量文字)</label>
+              <label className="text-xs font-black text-stone-700 block mb-1">📝 詳細調度與交接備註</label>
               <textarea
                 rows={5}
-                placeholder="請輸入當天該標籤項目的具體飯店確認狀況、車輛航班變動或詳細人力交接事項..."
+                placeholder="請輸入當天該標籤項目的具體狀況..."
                 value={formLogNotes}
                 onChange={(e) => setFormLogNotes(e.target.value)}
                 className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-3 py-2 bg-stone-50 text-stone-800 focus:outline-none focus:border-emerald-600 shadow-inner leading-relaxed"
               />
             </div>
 
+            {/* 🌟 防連點鎖死：只要在儲存中，按鈕立刻變灰且無法點擊 */}
             <button
               type="submit"
-              className="w-full bg-stone-900 hover:bg-stone-800 text-amber-400 font-black py-4 rounded-xl shadow-md transition-all active:scale-95 text-center text-sm"
+              disabled={syncStatus === "saving"}
+              className="w-full bg-stone-900 hover:bg-stone-800 text-amber-400 font-black py-4 rounded-xl shadow-md transition-all active:scale-95 text-center text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ➕ 儲存本日事件回傳雲端 ➔
+              {syncStatus === "saving" ? "⏳ 雲端同步中請稍候..." : "➕ 儲存本日事件回傳雲端 ➔"}
             </button>
           </form>
         )}
@@ -585,7 +599,7 @@ export default function QuarterlyLogPage() {
           <form onSubmit={handleCreateTour} className="bg-white border border-stone-200 p-5 rounded-2xl shadow-sm space-y-4">
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs font-bold text-amber-900 leading-relaxed">
               💡 💡 <b>ERP 前瞻思維防呆：</b><br />
-              此處供內勤人員在<b>「尚未有任何客戶報名名單」</b>的前提下，先行完成開團與鋪設行事曆！產品天數將自動連動日誌一覽表的時間軸佔位。
+              此處供內勤人員在<b>「尚未有任何客戶報名名單」</b>的前提下，先行完成開團與鋪設行事曆！
             </div>
 
             <div>
@@ -656,11 +670,13 @@ export default function QuarterlyLogPage() {
               </div>
             </div>
 
+            {/* 🌟 防連點鎖死 */}
             <button
               type="submit"
-              className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-xl shadow-md transition-all active:scale-95 text-center text-sm mt-2"
+              disabled={syncStatus === "saving"}
+              className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-xl shadow-md transition-all active:scale-95 text-center text-sm mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              🚀 成立全新產品梯次並發布 ➔
+              {syncStatus === "saving" ? "⏳ 雲端同步中請稍候..." : "🚀 成立全新產品梯次並發布 ➔"}
             </button>
           </form>
         )}
@@ -674,7 +690,7 @@ export default function QuarterlyLogPage() {
             
             <div className="bg-stone-900 text-amber-400 p-4 flex justify-between items-center border-b-2 border-amber-500">
               <span className="font-black tracking-widest text-sm">✏️ 編輯調度日誌</span>
-              <button onClick={closeEditModal} className="text-stone-400 hover:text-white text-lg font-black transition-colors">✖</button>
+              <button onClick={closeEditModal} disabled={syncStatus === "saving"} className="text-stone-400 hover:text-white text-lg font-black transition-colors disabled:opacity-50">✖</button>
             </div>
             
             <div className="p-5 overflow-y-auto bg-stone-100">
@@ -740,33 +756,4 @@ export default function QuarterlyLogPage() {
                       rows={5}
                       value={editFormNotes}
                       onChange={(e) => setEditFormNotes(e.target.value)}
-                      className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 text-stone-800 focus:outline-none focus:border-amber-500 shadow-inner"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={closeEditModal}
-                    className="w-1/3 bg-stone-300 hover:bg-stone-400 text-stone-700 font-black py-3.5 rounded-xl shadow-sm transition-all"
-                  >
-                    取消
-                  </button>
-                  <button
-                    type="submit"
-                    className="w-2/3 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black py-3.5 rounded-xl shadow-md transition-all active:scale-95 border border-amber-600/50"
-                  >
-                    💾 儲存修改
-                  </button>
-                </div>
-
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-    </main>
-  );
-}
+                      className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 text-stone-800 focus:outline-none focus:border-
