@@ -13,7 +13,7 @@ interface Tour {
 }
 
 interface LogEvent {
-  日誌ID?: string; // 🌟 新增：系統專屬身分證 (相容舊資料設為可選)
+  日誌ID?: string;
   日期: string;
   標籤分類: string;
   關聯團號: string;
@@ -35,6 +35,7 @@ export default function QuarterlyLogPage() {
   const [editingLog, setEditingLog] = useState<LogEvent | null>(null);
   const [editFormDate, setEditFormDate] = useState("");
   const [editFormTag, setEditFormTag] = useState("");
+  const [editFormFlightDir, setEditFormFlightDir] = useState("IN"); // 🌟 編輯用：航班動向
   const [editFormTourId, setEditFormTourId] = useState("");
   const [editFormPerson, setEditFormPerson] = useState("");
   const [editFormNotes, setEditFormNotes] = useState("");
@@ -49,6 +50,7 @@ export default function QuarterlyLogPage() {
   // 日誌事件表單
   const [formLogDate, setFormLogDate] = useState("2026-07-08");
   const [formLogTag, setFormLogTag] = useState("飯店預約");
+  const [formLogFlightDir, setFormLogFlightDir] = useState("IN"); // 🌟 新增用：航班動向 (IN/OUT)
   const [formLogTourId, setFormLogTourId] = useState("");
   const [formLogPerson, setFormLogPerson] = useState("");
   const [formLogNotes, setFormLogNotes] = useState("");
@@ -136,10 +138,17 @@ export default function QuarterlyLogPage() {
     }
     try {
       setSyncStatus("saving");
+      
+      // 🌟 智慧組合標籤：如果是航班狀況，把 IN/OUT 寫進標籤中
+      let finalTag = formLogTag;
+      if (formLogTag === "航班狀況") {
+        finalTag = `航班狀況-${formLogFlightDir}`;
+      }
+
       const payload = {
-        日誌ID: Date.now().toString(), // 🌟 核心防呆：產生獨一無二的身分證
+        日誌ID: Date.now().toString(),
         日期: formLogDate,
-        標籤分類: formLogTag,
+        標籤分類: finalTag,
         關聯團號: formLogTourId,
         關聯人員: formLogPerson.trim(),
         詳細備註: formLogNotes.trim()
@@ -165,11 +174,21 @@ export default function QuarterlyLogPage() {
     }
   };
 
-  // ==================== 🌟 [編輯日誌功能] ====================
+  // ==================== [編輯日誌功能] ====================
   const openEditModal = (log: LogEvent) => {
     setEditingLog(log);
     setEditFormDate(log.日期 || "");
-    setEditFormTag(log.標籤分類 || "");
+    
+    // 🌟 解析舊資料的標籤，分離出 IN/OUT 狀態
+    let baseTag = log.標籤分類 || "";
+    let fDir = "IN";
+    if (baseTag.startsWith("航班狀況-")) {
+      fDir = baseTag.split("-")[1]; // 取出 IN 或 OUT
+      baseTag = "航班狀況";
+    }
+    setEditFormTag(baseTag);
+    setEditFormFlightDir(fDir);
+
     setEditFormTourId(log.關聯團號 || "");
     setEditFormPerson(log.關聯人員 || "");
     setEditFormNotes(log.詳細備註 || "");
@@ -185,16 +204,22 @@ export default function QuarterlyLogPage() {
 
     try {
       setSyncStatus("saving");
+
+      // 🌟 智慧組合標籤
+      let finalTag = editFormTag;
+      if (editFormTag === "航班狀況") {
+        finalTag = `航班狀況-${editFormFlightDir}`;
+      }
+
       const payload = {
-        日誌ID: editingLog.日誌ID || "", // 保持原ID不變
+        日誌ID: editingLog.日誌ID || "",
         日期: editFormDate,
-        標籤分類: editFormTag,
+        標籤分類: finalTag,
         關聯團號: editFormTourId,
         關聯人員: editFormPerson.trim(),
         詳細備註: editFormNotes.trim()
       };
 
-      // 🌟 智慧判斷：如果有日誌ID就用ID找，沒有（舊資料）才退回用備註找
       const searchKey = editingLog.日誌ID 
         ? `日誌ID/${editingLog.日誌ID}` 
         : `詳細備註/${encodeURIComponent(editingLog.詳細備註)}`;
@@ -219,7 +244,7 @@ export default function QuarterlyLogPage() {
     }
   };
 
-  // ==================== 🌟 [刪除日誌功能] ====================
+  // ==================== [刪除日誌功能] ====================
   const handleDeleteLog = async (log: LogEvent) => {
     if (!confirm("確定要刪除這筆工作安排嗎？刪除後無法復原！")) return;
 
@@ -249,7 +274,7 @@ export default function QuarterlyLogPage() {
     }
   };
 
-  // ERP 智慧核心演算法 (鋪設時間軸)
+  // ERP 智慧核心演算法
   const generateTimeline = () => {
     const timelineMap: { [dateStr: string]: { activeTours: string[]; events: LogEvent[] } } = {};
     
@@ -332,7 +357,7 @@ export default function QuarterlyLogPage() {
           </h1>
         </div>
         <Link href="/" className="text-stone-900 text-xs font-black bg-amber-400 hover:bg-amber-300 px-4 py-2 rounded-xl transition-all active:scale-95 shadow-md">
-          ↩ 回平台首頁
+          ↩ 回首頁
         </Link>
       </div>
 
@@ -454,52 +479,64 @@ export default function QuarterlyLogPage() {
                       {day.events.length === 0 ? (
                         <p className="text-[11px] text-stone-400 italic pl-1 py-1">本日尚無新增事件日誌說明</p>
                       ) : (
-                        day.events.map((e, idx) => (
-                          <div key={idx} className="bg-stone-50/70 border border-stone-200 p-3 rounded-xl space-y-2 relative">
-                            <div className="flex flex-wrap justify-between items-center gap-1">
-                              <div className="flex items-center gap-1.5 pr-14">
-                                <span className="text-[10px] font-black bg-amber-400 text-stone-950 px-2 py-0.5 rounded-md">
-                                  {e.標籤分類}
-                                </span>
-                                {e.關聯團號 && (
-                                  <span className="text-[10px] font-black bg-stone-800 text-amber-400 px-1.5 py-0.5 rounded-md">
-                                    {e.關聯團號}
+                        day.events.map((e, idx) => {
+                          // 🌟 動態渲染：針對航班 IN / OUT 呈現高對比色塊
+                          let displayTag = e.標籤分類;
+                          let tagStyle = "bg-amber-400 text-stone-950 border-transparent";
+                          
+                          if (displayTag === "航班狀況-IN") {
+                            displayTag = "🛬 航班 IN (抵達)";
+                            tagStyle = "bg-sky-500 text-white border-sky-600 shadow-sm";
+                          } else if (displayTag === "航班狀況-OUT") {
+                            displayTag = "🛫 航班 OUT (離開)";
+                            tagStyle = "bg-rose-500 text-white border-rose-600 shadow-sm";
+                          }
+
+                          return (
+                            <div key={idx} className="bg-stone-50/70 border border-stone-200 p-3 rounded-xl space-y-2 relative">
+                              <div className="flex flex-wrap justify-between items-center gap-1">
+                                <div className="flex items-center gap-1.5 pr-14">
+                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${tagStyle}`}>
+                                    {displayTag}
                                   </span>
+                                  {e.關聯團號 && (
+                                    <span className="text-[10px] font-black bg-stone-800 text-amber-400 px-1.5 py-0.5 rounded-md">
+                                      {e.關聯團號}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div>
+                                {e.關聯人員 && (
+                                  <p className="text-[10px] font-black text-emerald-800 mb-1">
+                                    👤 派員：{e.關聯人員}
+                                  </p>
                                 )}
+                                <p className="text-xs font-bold text-stone-700 leading-relaxed whitespace-pre-wrap pl-0.5">
+                                  {e.詳細備註}
+                                </p>
+                              </div>
+
+                              <div className="border-t border-stone-200/60 pt-2 mt-1 flex justify-end gap-2">
+                                <button 
+                                  onClick={() => openEditModal(e)}
+                                  disabled={isDeleting || syncStatus === "saving"}
+                                  className="text-[10px] font-black text-stone-500 bg-white border border-stone-200 hover:border-emerald-400 hover:text-emerald-700 px-3 py-1.5 rounded-lg transition-all active:scale-95 shadow-sm disabled:opacity-50"
+                                >
+                                  ✏️ 編輯修改
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteLog(e)}
+                                  disabled={isDeleting || syncStatus === "saving"}
+                                  className="text-[10px] font-black text-stone-500 bg-white border border-stone-200 hover:border-red-400 hover:text-red-600 px-3 py-1.5 rounded-lg transition-all active:scale-95 shadow-sm disabled:opacity-50"
+                                >
+                                  🗑️ 刪除紀錄
+                                </button>
                               </div>
                             </div>
-                            
-                            <div>
-                              {e.關聯人員 && (
-                                <p className="text-[10px] font-black text-emerald-800 mb-1">
-                                  👤 派員：{e.關聯人員}
-                                </p>
-                              )}
-                              <p className="text-xs font-bold text-stone-700 leading-relaxed whitespace-pre-wrap pl-0.5">
-                                {e.詳細備註}
-                              </p>
-                            </div>
-
-                            {/* 🌟 按鈕鎖死防呆：載入中禁止連點 */}
-                            <div className="border-t border-stone-200/60 pt-2 mt-1 flex justify-end gap-2">
-                              <button 
-                                onClick={() => openEditModal(e)}
-                                disabled={isDeleting || syncStatus === "saving"}
-                                className="text-[10px] font-black text-stone-500 bg-white border border-stone-200 hover:border-emerald-400 hover:text-emerald-700 px-3 py-1.5 rounded-lg transition-all active:scale-95 shadow-sm disabled:opacity-50"
-                              >
-                                ✏️ 編輯修改
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteLog(e)}
-                                disabled={isDeleting || syncStatus === "saving"}
-                                className="text-[10px] font-black text-stone-500 bg-white border border-stone-200 hover:border-red-400 hover:text-red-600 px-3 py-1.5 rounded-lg transition-all active:scale-95 shadow-sm disabled:opacity-50"
-                              >
-                                🗑️ 刪除紀錄
-                              </button>
-                            </div>
-
-                          </div>
-                        ))
+                          );
+                        })
                       )}
                     </div>
                   </div>
@@ -544,6 +581,30 @@ export default function QuarterlyLogPage() {
                   </button>
                 ))}
               </div>
+
+              {/* 🌟 防呆連動：如果標籤是「航班狀況」，跳出 IN / OUT 專屬按鈕 */}
+              {formLogTag === "航班狀況" && (
+                <div className="mt-2 p-2 bg-stone-100 border border-stone-200 rounded-xl flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormLogFlightDir("IN")}
+                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                      formLogFlightDir === "IN" ? "bg-sky-500 text-white shadow-sm border border-sky-600" : "bg-white text-stone-400 border border-stone-200"
+                    }`}
+                  >
+                    🛬 IN (抵達日本)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormLogFlightDir("OUT")}
+                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all ${
+                      formLogFlightDir === "OUT" ? "bg-rose-500 text-white shadow-sm border border-rose-600" : "bg-white text-stone-400 border border-stone-200"
+                    }`}
+                  >
+                    🛫 OUT (離開日本)
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -583,7 +644,6 @@ export default function QuarterlyLogPage() {
               />
             </div>
 
-            {/* 🌟 防連點鎖死：只要在儲存中，按鈕立刻變灰且無法點擊 */}
             <button
               type="submit"
               disabled={syncStatus === "saving"}
@@ -670,7 +730,6 @@ export default function QuarterlyLogPage() {
               </div>
             </div>
 
-            {/* 🌟 防連點鎖死 */}
             <button
               type="submit"
               disabled={syncStatus === "saving"}
@@ -723,6 +782,30 @@ export default function QuarterlyLogPage() {
                       <option value="休假住宿">休假住宿</option>
                       <option value="團務交接">團務交接</option>
                     </select>
+
+                    {/* 🌟 編輯模式的 IN/OUT 防呆連動 */}
+                    {editFormTag === "航班狀況" && (
+                      <div className="mt-2 p-2 bg-stone-100 border border-stone-200 rounded-lg flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditFormFlightDir("IN")}
+                          className={`flex-1 py-1.5 rounded-md text-[10px] font-black transition-all ${
+                            editFormFlightDir === "IN" ? "bg-sky-500 text-white shadow-sm border border-sky-600" : "bg-white text-stone-400 border border-stone-200"
+                          }`}
+                        >
+                          🛬 IN (抵達日本)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditFormFlightDir("OUT")}
+                          className={`flex-1 py-1.5 rounded-md text-[10px] font-black transition-all ${
+                            editFormFlightDir === "OUT" ? "bg-rose-500 text-white shadow-sm border border-rose-600" : "bg-white text-stone-400 border border-stone-200"
+                          }`}
+                        >
+                          🛫 OUT (離開日本)
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -756,4 +839,35 @@ export default function QuarterlyLogPage() {
                       rows={5}
                       value={editFormNotes}
                       onChange={(e) => setEditFormNotes(e.target.value)}
-                      className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 text-stone-800 focus:outline-none focus:border-
+                      className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg px-3 py-2 bg-stone-50 text-stone-800 focus:outline-none focus:border-amber-500 shadow-inner"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={closeEditModal}
+                    disabled={syncStatus === "saving"}
+                    className="w-1/3 bg-stone-300 hover:bg-stone-400 text-stone-700 font-black py-3.5 rounded-xl shadow-sm transition-all disabled:opacity-50"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={syncStatus === "saving"}
+                    className="w-2/3 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black py-3.5 rounded-xl shadow-md transition-all active:scale-95 border border-amber-600/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {syncStatus === "saving" ? "⏳ 儲存中..." : "💾 儲存修改"}
+                  </button>
+                </div>
+
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </main>
+  );
+}
