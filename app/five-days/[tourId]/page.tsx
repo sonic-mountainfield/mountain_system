@@ -27,14 +27,17 @@ export default function FiveDaysDashboardPage() {
   const [tourGroups, setTourGroups] = useState<string[]>([]);
   const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
 
+  // ✈️ 報到與接送過濾
   const [selectedTransferFilter, setSelectedTransferFilter] = useState<string | null>(null);
   const [transferStats, setTransferStats] = useState<{ [key: string]: number }>({});
   
+  // 🍱 餐點與單車
   const [mealStats, setMealStats] = useState<{ [key: string]: number }>({});
   const [bikeStats, setBikeStats] = useState<{ [key: string]: number }>({});
   const [selectedMealFilter, setSelectedMealFilter] = useState<string | null>(null);
   const [selectedBikeFilter, setSelectedBikeFilter] = useState<string | null>(null);
 
+  // 🏨 三階段飯店切換狀態 (預設看東京首日)
   const [selectedHotelStage, setSelectedHotelStage] = useState<string>("東京首日");
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
@@ -219,12 +222,14 @@ export default function FiveDaysDashboardPage() {
     }
   };
 
+  // 🌟 修復核心：新增提取 房客5 
   const getGuestsList = (room: any) => {
     const guests = [
       room.房客1 || room["房客 1"] || room["房客  1"],
       room.房客2 || room["房客 2"] || room["房客  2"],
       room.房客3 || room["房客 3"] || room["房客  3"],
-      room.房客4 || room["房客 4"] || room["房客  4"]
+      room.房客4 || room["房客 4"] || room["房客  4"],
+      room.房客5 || room["房客 5"] || room["房客  5"]
     ];
     return guests.map(g => (g ? String(g).trim() : "")).filter(g => g !== "" && g !== "undefined" && g !== "null");
   };
@@ -254,7 +259,6 @@ export default function FiveDaysDashboardPage() {
   const checkinTotal = displayedCheckins.length;
   const checkinDone = displayedCheckins.filter(m => m.報到狀態 === "TRUE").length;
 
-  // 🌟 修復裝備遺漏的公式
   const equipmentMembers = memberData.filter((m) => m.裝備明細 && m.裝備明細.trim() !== "" && m.裝備明細 !== "無");
   const equipTotal = equipmentMembers.length;
   const equipGiven = equipmentMembers.filter(m => m.裝備借出 === "TRUE").length;
