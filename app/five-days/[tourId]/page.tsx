@@ -27,17 +27,14 @@ export default function FiveDaysDashboardPage() {
   const [tourGroups, setTourGroups] = useState<string[]>([]);
   const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
 
-  // ✈️ 報到與接送過濾
   const [selectedTransferFilter, setSelectedTransferFilter] = useState<string | null>(null);
   const [transferStats, setTransferStats] = useState<{ [key: string]: number }>({});
   
-  // 🍱 餐點與單車
   const [mealStats, setMealStats] = useState<{ [key: string]: number }>({});
   const [bikeStats, setBikeStats] = useState<{ [key: string]: number }>({});
   const [selectedMealFilter, setSelectedMealFilter] = useState<string | null>(null);
   const [selectedBikeFilter, setSelectedBikeFilter] = useState<string | null>(null);
 
-  // 🏨 三階段飯店切換狀態 (預設看東京首日)
   const [selectedHotelStage, setSelectedHotelStage] = useState<string>("東京首日");
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
@@ -92,6 +89,7 @@ export default function FiveDaysDashboardPage() {
         setLoading(false);
       }
 
+      // 強制不使用快取，向伺服器要最新資料 (解決換表頭或新增欄位抓不到的問題)
       const resMembers = await fetch(`${SHEETDB_URL}?sheet=5日出團總表`, { cache: "no-store" });
       const allMembers = await resMembers.json();
       const filteredMembers = Array.isArray(allMembers) ? allMembers.filter((m: any) => m.團號 === tourId) : [];
@@ -199,14 +197,29 @@ export default function FiveDaysDashboardPage() {
     setRoomData(newData);
   };
 
+  // 🌟 動態抓取主房客的 Key 與 Value (解決雲端 API 找不到表頭的問題)
+  const getPrimaryGuestInfo = (room: any) => {
+    const guestKeys = Object.keys(room).filter(k => k.includes("房客"));
+    guestKeys.sort();
+    for (let key of guestKeys) {
+      const val = String(room[key]).trim();
+      if (val && val !== "undefined" && val !== "null" && val !== "") {
+        return { key, value: val };
+      }
+    }
+    return null;
+  };
+
   const saveSingleRoomNumber = async (index: number) => {
     const room = roomData[index];
-    const primaryGuest = room["房客 1"] || room.房客1;
-    if (!primaryGuest) return;
+    const primaryInfo = getPrimaryGuestInfo(room);
+    if (!primaryInfo) return; // 這間房沒有人
+    
     try {
       setSavingIdx(index);
       setSyncStatus("saving");
-      const response = await fetch(`${SHEETDB_URL}/房客 1/${encodeURIComponent(primaryGuest)}?sheet=5日排房表`, {
+      // 🌟 精準使用表頭名稱做 API 更新
+      const response = await fetch(`${SHEETDB_URL}/${encodeURIComponent(primaryInfo.key)}/${encodeURIComponent(primaryInfo.value)}?sheet=5日排房表`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: { 實際房號: room.實際房號 || "" } })
@@ -222,16 +235,19 @@ export default function FiveDaysDashboardPage() {
     }
   };
 
-  // 🌟 修復核心：新增提取 房客5 
+  // 🌟 終極房客過濾器：支援無限房客 (只要表頭有"房客"兩個字通通抓出來)
   const getGuestsList = (room: any) => {
-    const guests = [
-      room.房客1 || room["房客 1"] || room["房客  1"],
-      room.房客2 || room["房客 2"] || room["房客  2"],
-      room.房客3 || room["房客 3"] || room["房客  3"],
-      room.房客4 || room["房客 4"] || room["房客  4"],
-      room.房客5 || room["房客 5"] || room["房客  5"]
-    ];
-    return guests.map(g => (g ? String(g).trim() : "")).filter(g => g !== "" && g !== "undefined" && g !== "null");
+    const guests: string[] = [];
+    const guestKeys = Object.keys(room).filter(k => k.includes("房客"));
+    guestKeys.sort(); // 確保照 1, 2, 3, 4, 5 排列
+    
+    guestKeys.forEach(key => {
+      const val = String(room[key]).trim();
+      if (val && val !== "" && val !== "undefined" && val !== "null") {
+        guests.push(val);
+      }
+    });
+    return Array.from(new Set(guests)); // 剔除重複
   };
 
   const getRoomDietaryRestrictions = (guests: string[]) => {
@@ -300,7 +316,6 @@ export default function FiveDaysDashboardPage() {
 
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col items-center pb-12">
-      {/* 🌈 頂部彩虹漸層導覽列 */}
       <div className="w-full bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-600 text-white py-4 px-6 sticky top-0 z-20 flex items-center justify-between shadow-lg">
         <div>
           <span className="text-[10px] font-black bg-white/20 backdrop-blur-md text-white px-2 py-0.5 rounded-full uppercase tracking-wider border border-white/30">
@@ -352,7 +367,6 @@ export default function FiveDaysDashboardPage() {
 
       <div className="w-full max-w-md px-4 mt-4">
         
-        {/* ================= 🌈 主選單畫面 (彩虹漸層卡片) ================= */}
         {view === "menu" && (
           <div className="grid grid-cols-2 gap-3">
             {offlineQueue.length > 0 && (
@@ -361,7 +375,6 @@ export default function FiveDaysDashboardPage() {
               </button>
             )}
 
-            {/* 🔴 紅色系：分組名單 */}
             <button onClick={() => setView("groupDetail")} className="col-span-2 flex items-center justify-between bg-gradient-to-r from-rose-500 to-red-500 p-5 rounded-2xl shadow-md shadow-red-200 text-white active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-lg font-black text-white">🥾 登山分組與名單</h2>
@@ -370,7 +383,6 @@ export default function FiveDaysDashboardPage() {
               <span className="text-xl font-bold">➔</span>
             </button>
 
-            {/* 🟠 橘色系：機場接送 */}
             <button onClick={() => setView("checkin")} className="col-span-2 flex items-center justify-between bg-gradient-to-r from-orange-400 to-orange-500 p-5 rounded-2xl shadow-md shadow-orange-200 text-white active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-lg font-black text-white">✈️ 機場接送與航班確認</h2>
@@ -379,7 +391,6 @@ export default function FiveDaysDashboardPage() {
               <span className="text-xl font-bold">➔</span>
             </button>
 
-            {/* 🟡 黃色系：緊急聯絡 */}
             <button onClick={() => setView("customerInfo")} className="col-span-2 flex items-center justify-between bg-gradient-to-r from-amber-300 to-yellow-400 p-5 rounded-2xl shadow-md shadow-yellow-200 text-stone-900 active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-lg font-black text-stone-900">👤 隊員聯絡與緊急資料</h2>
@@ -388,32 +399,27 @@ export default function FiveDaysDashboardPage() {
               <span className="text-xl font-bold">➔</span>
             </button>
 
-            {/* 🟢 綠色系：裝備 */}
             <button onClick={() => setView("equipment")} className="flex flex-col items-start bg-gradient-to-br from-lime-400 to-green-500 p-4 rounded-2xl shadow-md shadow-green-200 text-stone-900 active:scale-[0.98] transition-all">
               <h2 className="text-base font-black text-stone-900 mb-1">🎒 裝備</h2>
               <p className="text-[10px] text-stone-700 font-bold">借出與損壞回報</p>
             </button>
 
-            {/* 🟢 藍綠色系：餐點 */}
             <button onClick={() => setView("meals")} className="flex flex-col items-start bg-gradient-to-br from-emerald-400 to-teal-500 p-4 rounded-2xl shadow-md shadow-teal-200 text-white active:scale-[0.98] transition-all">
               <h2 className="text-base font-black text-white mb-1">🍱 五合目餐點</h2>
               <p className="text-[10px] text-white/80 font-bold">分類發放點收</p>
             </button>
 
-            {/* 🔵 藍色系：單車 */}
             <button onClick={() => setView("bikes")} className="flex flex-col items-start bg-gradient-to-br from-cyan-400 to-blue-500 p-4 rounded-2xl shadow-md shadow-blue-200 text-white active:scale-[0.98] transition-all relative overflow-hidden">
               <div className="absolute -right-2 -bottom-2 text-4xl opacity-20">🚴</div>
               <h2 className="text-base font-black text-white mb-1">🚴 單車租借</h2>
               <p className="text-[10px] text-white/80 font-bold">自動計算金額對帳</p>
             </button>
 
-            {/* 🟣 靛紫色系：排房 */}
             <button onClick={() => setView("rooms")} className="flex flex-col items-start bg-gradient-to-br from-blue-500 to-indigo-500 p-4 rounded-2xl shadow-md shadow-indigo-200 text-white active:scale-[0.98] transition-all">
               <h2 className="text-base font-black text-white mb-1">🏨 飯店排房</h2>
               <p className="text-[10px] text-white/80 font-bold">三階段房號登記</p>
             </button>
 
-            {/* 🌸 紫紅色系：總房表 */}
             <button onClick={() => setView("roomSummary")} className="col-span-2 flex items-center justify-between bg-gradient-to-r from-violet-500 to-fuchsia-500 p-5 rounded-2xl shadow-md shadow-fuchsia-200 text-white active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-lg font-black text-white">🗝️ 飯店總房表快速對照</h2>
@@ -423,7 +429,7 @@ export default function FiveDaysDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🟠 機場接駁與報到 (Orange) ================= */}
+        {/* ================= 🟠 機場接駁與報到 ================= */}
         {view === "checkin" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-4 rounded-2xl shadow-md shadow-orange-200">
@@ -494,7 +500,7 @@ export default function FiveDaysDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🟣 三階段飯店排房 (Indigo/Violet) ================= */}
+        {/* ================= 🟣 三階段飯店排房 ================= */}
         {view === "rooms" && (
           <div className="space-y-4">
             <div className="bg-indigo-600 p-2 rounded-2xl flex gap-1 shadow-md shadow-indigo-200 sticky top-[72px] z-10">
@@ -555,7 +561,7 @@ export default function FiveDaysDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🌸 飯店總房表快速對照 (Fuchsia/Pink) ================= */}
+        {/* ================= 🌸 飯店總房表快速對照 ================= */}
         {view === "roomSummary" && (
           <div className="space-y-4">
             <div className="bg-fuchsia-600 p-2 rounded-2xl flex gap-1 shadow-md shadow-fuchsia-200 sticky top-[72px] z-10">
@@ -616,7 +622,7 @@ export default function FiveDaysDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🔵 單車租借與對帳 (Blue/Cyan) ================= */}
+        {/* ================= 🔵 單車租借與對帳 ================= */}
         {view === "bikes" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white p-4 rounded-2xl shadow-md shadow-blue-200">
@@ -698,7 +704,7 @@ export default function FiveDaysDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🔴 登山分組與名單 (Red/Rose) ================= */}
+        {/* ================= 🔴 登山分組 ================= */}
         {view === "groupDetail" && (
           <div className="space-y-6">
             {tourGroups.map((groupName) => {
@@ -726,7 +732,7 @@ export default function FiveDaysDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🟡 隊員聯絡與緊急資料 (Yellow/Amber) ================= */}
+        {/* ================= 🟡 緊急資料 ================= */}
         {view === "customerInfo" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-amber-400 to-yellow-500 text-stone-900 p-4 rounded-2xl shadow-md shadow-yellow-200">
@@ -761,7 +767,7 @@ export default function FiveDaysDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🟢 裝備確認 (Lime/Green) ================= */}
+        {/* ================= 🟢 裝備確認 ================= */}
         {view === "equipment" && (
           <div className="space-y-4">
             <div className="bg-white border-2 border-green-200 p-4 rounded-2xl shadow-sm mb-4">
@@ -819,7 +825,7 @@ export default function FiveDaysDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🟢 餐點發放 (Teal/Emerald) ================= */}
+        {/* ================= 🟢 餐點發放 ================= */}
         {view === "meals" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-4 rounded-2xl shadow-md shadow-teal-200">
