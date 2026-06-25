@@ -35,11 +35,20 @@ export default function FiveDaysDashboardPage() {
   const [mealStats, setMealStats] = useState<{ [key: string]: number }>({});
   const [bikeStats, setBikeStats] = useState<{ [key: string]: number }>({});
   const [selectedMealFilter, setSelectedMealFilter] = useState<string | null>(null);
+  const [selectedBikeFilter, setSelectedBikeFilter] = useState<string | null>(null);
 
   // 🏨 三階段飯店切換狀態 (預設看東京首日)
   const [selectedHotelStage, setSelectedHotelStage] = useState<string>("東京首日");
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
+
+  const getBikePrice = (typeString: string) => {
+    if (!typeString) return 0;
+    if (typeString.includes("電動")) return 4000;
+    if (typeString.includes("越野")) return 3000;
+    if (typeString.includes("一般")) return 2000;
+    return 0; 
+  };
 
   const calculateStats = (members: any[], rooms: any[]) => {
     const mealsMap: { [key: string]: number } = {};
@@ -48,21 +57,15 @@ export default function FiveDaysDashboardPage() {
     const groupsSet = new Set<string>();
 
     members.forEach((m: any) => {
-      // 餐點
       const meal = m.五合目餐點 ? String(m.五合目餐點).trim() : "常規餐點";
       mealsMap[meal] = (mealsMap[meal] || 0) + 1;
 
-      // 接送模式
       const trans = m.接送模式 ? String(m.接送模式).trim() : "未定";
       transferMap[trans] = (transferMap[trans] || 0) + 1;
 
-      // 單車需求
-      const bike = m.單車需求 ? String(m.單車需求).trim() : "無";
-      if (bike !== "無") {
-        bikesMap[bike] = (bikesMap[bike] || 0) + 1;
-      }
+      const bike = m.單車需求 ? String(m.單車需求).trim() : "未填寫";
+      bikesMap[bike] = (bikesMap[bike] || 0) + 1;
 
-      // 分組
       const gName = m.分組 ? String(m.分組).trim() : "";
       if (gName && gName !== "無" && gName !== "undefined" && gName !== "null") {
         groupsSet.add(gName);
@@ -190,14 +193,12 @@ export default function FiveDaysDashboardPage() {
     setMemberData(updatedMembers);
   };
 
-  // 🏨 飯店排房更新邏輯
   const handleRoomNumberChange = (index: number, newValue: string) => {
     const newData = [...roomData];
     newData[index] = { ...newData[index], 實際房號: newValue };
     setRoomData(newData);
   };
 
-  // 🏨 儲存單一房間：只要存這一列，同房4人的房號就自動連動完成了！
   const saveSingleRoomNumber = async (index: number) => {
     const room = roomData[index];
     const primaryGuest = room["房客 1"] || room.房客1;
@@ -231,7 +232,6 @@ export default function FiveDaysDashboardPage() {
     return guests.map(g => (g ? String(g).trim() : "")).filter(g => g !== "" && g !== "undefined" && g !== "null");
   };
 
-  // 🌟 跨表連動：取得該房客人的禁忌食材
   const getRoomDietaryRestrictions = (guests: string[]) => {
     const restrictions: string[] = [];
     guests.forEach(gName => {
@@ -251,7 +251,7 @@ export default function FiveDaysDashboardPage() {
     );
   }
 
-  // === 各模組進度運算 ===
+  // === 各模組運算 ===
   const displayedCheckins = selectedTransferFilter ? memberData.filter(m => (m.接送模式 ? String(m.接送模式).trim() : "未定") === selectedTransferFilter) : [...memberData];
   displayedCheckins.sort((a, b) => (a.報到狀態 === "TRUE" ? 1 : -1));
   const checkinTotal = displayedCheckins.length;
@@ -261,20 +261,41 @@ export default function FiveDaysDashboardPage() {
   const equipTotal = equipmentMembers.length;
   const equipGiven = equipmentMembers.filter(m => m.裝備借出 === "TRUE").length;
 
-  const displayedMeals = selectedMealFilter ? memberData.filter(m => (m.五合目餐點 ? String(m.五合目餐點).trim() : "常規餐點") === selectedMealFilter) : memberData;
+  const displayedMeals = selectedMealFilter ? memberData.filter(m => (m.五合目餐點 ? String(m.五合目餐點).trim() : "常規餐點") === selectedMealFilter) : [...memberData];
+  displayedMeals.sort((a, b) => {
+    const aClaimed = a.餐點領取 === "TRUE";
+    const bClaimed = b.餐點領取 === "TRUE";
+    if (aClaimed === bClaimed) return 0;
+    return aClaimed ? 1 : -1;
+  });
   const mealTotal = displayedMeals.length;
   const mealGiven = displayedMeals.filter(m => m.餐點領取 === "TRUE").length;
+  const mealRemain = mealTotal - mealGiven;
+  const mealPercent = mealTotal === 0 ? 0 : Math.round((mealGiven / mealTotal) * 100);
 
-  const bikeMembers = memberData.filter((m) => m.單車需求 && m.單車需求.trim() !== "" && m.單車需求 !== "無");
-  const bikeTotal = bikeMembers.length;
-  const bikeGiven = bikeMembers.filter(m => m.單車點收 === "TRUE").length;
+  const displayedBikes = selectedBikeFilter ? memberData.filter(m => (m.單車需求 ? String(m.單車需求).trim() : "未填寫") === selectedBikeFilter) : [...memberData];
+  displayedBikes.sort((a, b) => {
+    const aClaimed = a.單車點收 === "TRUE";
+    const bClaimed = b.單車點收 === "TRUE";
+    if (aClaimed === bClaimed) return 0;
+    return aClaimed ? 1 : -1;
+  });
 
-  // 🏨 當前階段的飯店排房資料過濾
+  let totalBikeExpectedRevenue = 0;
+  let totalBikeCollectedRevenue = 0;
+  memberData.forEach(m => {
+    const typeStr = m.單車需求 ? String(m.單車需求).trim() : "";
+    const price = getBikePrice(typeStr);
+    totalBikeExpectedRevenue += price;
+    if (m.單車點收 === "TRUE") {
+      totalBikeCollectedRevenue += price;
+    }
+  });
+
   const currentStageRooms = roomData.filter((r) => r.住宿階段 === selectedHotelStage);
 
   return (
     <main className="min-h-screen bg-slate-50 flex flex-col items-center pb-12">
-      {/* 頂部導覽列 (海洋深藍系) */}
       <div className="w-full bg-slate-900 text-white py-4 px-6 sticky top-0 z-20 flex items-center justify-between shadow-lg border-b border-sky-900">
         <div>
           <span className="text-[10px] font-black bg-sky-500 text-white px-2 py-0.5 rounded-full uppercase tracking-wider">TAKENO {tourId} (5日)</span>
@@ -287,17 +308,16 @@ export default function FiveDaysDashboardPage() {
             {view === "meals" && "🍱 五合目餐點發放"}
             {view === "rooms" && "🏨 三階段飯店排房"}
             {view === "roomSummary" && "🗝️ 總房表快速對照"}
-            {view === "bikes" && "🚴 河口湖單車點收"}
+            {view === "bikes" && "🚴 單車派發與對帳"}
           </h1>
         </div>
         {view === "menu" ? (
           <Link href="/five-days" className="text-sky-100 text-xs font-bold bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl active:scale-95 transition-all">返回總表</Link>
         ) : (
-          <button onClick={() => { setView("menu"); setSelectedTransferFilter(null); setSelectedMealFilter(null); }} className="text-sky-950 text-xs font-black bg-sky-400 hover:bg-sky-300 px-4 py-2 rounded-xl active:scale-95 transition-all shadow-sm">↩ 回選單</button>
+          <button onClick={() => { setView("menu"); setSelectedTransferFilter(null); setSelectedMealFilter(null); setSelectedBikeFilter(null); }} className="text-sky-950 text-xs font-black bg-sky-400 hover:bg-sky-300 px-4 py-2 rounded-xl active:scale-95 transition-all shadow-sm">↩ 回選單</button>
         )}
       </div>
 
-      {/* 戰術狀態提示條 */}
       {view !== "menu" && (
         <div className="w-full max-w-md px-4 mt-3">
           {syncStatus === "offline-pending" ? (
@@ -354,7 +374,6 @@ export default function FiveDaysDashboardPage() {
               <span className="text-xl text-amber-400 font-bold">➔</span>
             </button>
 
-            {/* 兩兩並排的小模組 */}
             <button onClick={() => setView("equipment")} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 active:scale-[0.98]">
               <h2 className="text-base font-black text-slate-800 mb-1">🎒 裝備</h2>
               <p className="text-[10px] text-slate-500">借出與損壞回報</p>
@@ -366,7 +385,7 @@ export default function FiveDaysDashboardPage() {
             <button onClick={() => setView("bikes")} className="bg-white p-4 rounded-2xl shadow-sm border border-sky-200 active:scale-[0.98] relative overflow-hidden">
               <div className="absolute -right-2 -bottom-2 text-4xl opacity-10">🚴</div>
               <h2 className="text-base font-black text-sky-900 mb-1">🚴 單車租借</h2>
-              <p className="text-[10px] text-sky-700 font-bold">河口湖車輛點收</p>
+              <p className="text-[10px] text-sky-700 font-bold">自動計算金額對帳</p>
             </button>
             <button onClick={() => setView("rooms")} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-200 active:scale-[0.98]">
               <h2 className="text-base font-black text-slate-800 mb-1">🏨 飯店排房</h2>
@@ -382,7 +401,7 @@ export default function FiveDaysDashboardPage() {
           </div>
         )}
 
-        {/* ================= ✈️ 機場接駁與報到 (五日團專屬) ================= */}
+        {/* ================= ✈️ 機場接駁與報到 ================= */}
         {view === "checkin" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-slate-800 to-slate-900 text-white p-4 rounded-2xl shadow-md border border-slate-700">
@@ -434,7 +453,7 @@ export default function FiveDaysDashboardPage() {
 
                   <div className="pt-1">
                     <label className="text-[10px] font-black text-slate-400 block mb-1 pl-1">📝 現場備註 (自動儲存)</label>
-                    <input type="text" placeholder="追加註記..." value={member.備註 || ""} onChange={(e) => handleLocalTextChange(originalIdx, "備註", e.target.value)} onBlur={(e) => handleMemberFieldUpdate(originalIdx, "備註", e.target.value)} className="w-full text-xs font-bold border-2 border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:border-sky-500"/>
+                    <input type="text" placeholder="追加註記..." value={member.備註 || ""} onChange={(e) => handleLocalTextChange(originalIdx, "備註", e.target.value)} onBlur={(e) => handleMemberFieldUpdate(originalIdx, "備註", e.target.value)} className="w-full text-xs font-bold border-2 border-slate-200 rounded-xl px-3 py-2 bg-slate-50 text-slate-800 focus:border-sky-500 focus:outline-none"/>
                   </div>
 
                   <div className="bg-sky-50/50 border border-sky-100 rounded-xl p-3 flex justify-between items-center mt-1">
@@ -453,10 +472,9 @@ export default function FiveDaysDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🏨 三階段飯店排房 (五日團專屬) ================= */}
+        {/* ================= 🏨 三階段飯店排房 ================= */}
         {view === "rooms" && (
           <div className="space-y-4">
-            {/* 🌟 飯店階段切換器 */}
             <div className="bg-slate-900 p-2 rounded-2xl flex gap-1 shadow-md sticky top-[72px] z-10">
               {["東京首日", "溫泉旅館", "東京尾日"].map(stage => (
                 <button 
@@ -477,8 +495,6 @@ export default function FiveDaysDashboardPage() {
               currentStageRooms.map((room) => {
                 const originalIdx = roomData.findIndex(r => r === room);
                 const guests = getGuestsList(room);
-                
-                // 🌟 自動去抓這間房客人的禁忌食材
                 const dietWarnings = selectedHotelStage === "溫泉旅館" ? getRoomDietaryRestrictions(guests) : [];
 
                 return (
@@ -496,7 +512,6 @@ export default function FiveDaysDashboardPage() {
                       <p className="text-sm font-black text-slate-700 tracking-wide">{guests.length > 0 ? guests.join(" 、 ") : <span className="text-slate-400 font-normal text-xs">未排房客</span>}</p>
                     </div>
 
-                    {/* 🌟 溫泉旅館專屬：禁忌食材紅燈警告 */}
                     {dietWarnings.length > 0 && (
                       <div className="mb-3 bg-red-50 border border-red-200 p-2.5 rounded-xl">
                         <p className="text-[10px] font-black text-red-800 mb-1">⚠️ 慶功宴禁忌食材警告：</p>
@@ -518,39 +533,145 @@ export default function FiveDaysDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🚴 單車租借 (五日團專屬) ================= */}
-        {view === "bikes" && (
+        {/* ================= 🌟 🗝️ 飯店總房表快速對照 (加入分類統計) ================= */}
+        {view === "roomSummary" && (
           <div className="space-y-4">
-            <div className="bg-gradient-to-br from-sky-800 to-sky-950 text-white p-4 rounded-2xl shadow-md border border-sky-700">
-              <h3 className="text-sm font-black text-sky-100 mb-3">🚴 單車需求總計</h3>
-              <div className="flex gap-2">
-                {Object.entries(bikeStats).map(([type, count]) => (
-                  <div key={type} className="flex-1 bg-slate-900/50 border border-sky-500/50 p-3 rounded-xl text-center">
-                    <p className="text-[10px] text-sky-300 font-bold mb-1">{type}</p>
-                    <p className="text-xl font-black text-white">{count} <span className="text-xs font-normal">台</span></p>
-                  </div>
-                ))}
+            
+            {/* 🌟 保持一貫的飯店階段切換器 */}
+            <div className="bg-slate-900 p-2 rounded-2xl flex gap-1 shadow-md sticky top-[72px] z-10">
+              {["東京首日", "溫泉旅館", "東京尾日"].map(stage => (
+                <button 
+                  key={stage} 
+                  onClick={() => setSelectedHotelStage(stage)}
+                  className={`flex-1 py-2 text-[11px] font-black rounded-xl transition-all ${selectedHotelStage === stage ? "bg-sky-500 text-white shadow-sm" : "bg-transparent text-slate-400 hover:bg-slate-800"}`}
+                >
+                  {stage}
+                </button>
+              ))}
+            </div>
+
+            {/* 🌟 房型數量動態統計面板 */}
+            <div className="bg-gradient-to-br from-sky-800 to-slate-900 text-white p-4 rounded-2xl shadow-md border border-sky-700 mb-2">
+              <p className="text-[9px] text-sky-400 font-black tracking-widest uppercase">Room-type Automation Stats</p>
+              <h3 className="text-sm font-black text-slate-100 mt-0.5 mb-3">🏨 【{selectedHotelStage}】房型總量清點</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {(() => {
+                  const currentStats: { [key: string]: number } = {};
+                  currentStageRooms.forEach(r => {
+                    const rType = r.房型 ? String(r.房型).trim() : "未定房型";
+                    currentStats[rType] = (currentStats[rType] || 0) + 1;
+                  });
+                  return Object.entries(currentStats).map(([rType, count]) => (
+                    <div key={rType} className="bg-slate-950/40 border border-sky-800/40 p-2.5 rounded-xl flex justify-between items-center">
+                      <span className="text-[11px] font-bold text-slate-300 truncate mr-1">{rType}</span>
+                      <span className="text-base font-black text-amber-400 whitespace-nowrap">{count} <span className="text-[10px] text-slate-400 font-bold">間</span></span>
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
 
-            {bikeMembers.length === 0 ? (
+            {/* 🌟 過濾後的總房表明細 */}
+            {currentStageRooms.length === 0 ? (
               <div className="text-center py-10 bg-white rounded-2xl border border-slate-200">
-                <p className="text-slate-400 text-sm font-bold">本團無人登記單車需求</p>
+                <p className="text-slate-400 text-sm font-bold">目前【{selectedHotelStage}】無排房資料</p>
               </div>
             ) : (
-              bikeMembers.map((member, _idx) => {
+              <div className="space-y-3">
+                {currentStageRooms.map((room, idx) => {
+                  const guests = getGuestsList(room);
+                  return (
+                    <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                      <div className="flex-1 pr-2">
+                        <div className="text-[9px] text-sky-600 font-bold mb-0.5">{room.入住日期 ? room.入住日期.substring(5) : "當日"} | {room.飯店名稱}</div>
+                        <div className="text-xs font-black text-slate-800 leading-relaxed">{guests.length > 0 ? guests.join(" 、 ") : <span className="text-slate-400 font-normal">未排房客</span>}</div>
+                      </div>
+                      <div className="ml-2 pl-3 border-l border-slate-200 flex flex-col items-center justify-center min-w-[55px]">
+                        <span className="text-[9px] text-slate-400 font-bold mb-0.5">房號</span>
+                        <span className={`text-base font-black ${room.實際房號 ? "text-sky-700" : "text-slate-300"}`}>{room.實際房號 || "—"}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ================= 🚴 單車租借與對帳 ================= */}
+        {view === "bikes" && (
+          <div className="space-y-4">
+            <div className="bg-gradient-to-br from-sky-800 to-sky-950 text-white p-4 rounded-2xl shadow-md border border-sky-700">
+              <div className="flex justify-between items-end mb-3">
+                <div>
+                  <p className="text-[9px] text-sky-400 font-black tracking-widest uppercase">Bike Filter & Financial</p>
+                  <h3 className="text-sm font-black text-sky-100 mt-0.5">🚴 點擊下方單車類型過濾名單</h3>
+                </div>
+                {selectedBikeFilter && (
+                  <button onClick={() => setSelectedBikeFilter(null)} className="text-[10px] bg-slate-700/80 hover:bg-slate-600 text-slate-200 px-2 py-1 rounded-md border border-slate-500 transition-all active:scale-95">
+                    ✖ 取消過濾
+                  </button>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {Object.entries(bikeStats).map(([type, count]) => {
+                  const isSelected = selectedBikeFilter === type;
+                  return (
+                    <button 
+                      key={type} 
+                      onClick={() => setSelectedBikeFilter(isSelected ? null : type)}
+                      className={`p-2.5 rounded-xl flex justify-between items-center transition-all active:scale-95 text-left
+                        ${isSelected ? "bg-sky-600 border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-lg" : "bg-slate-900/50 border border-sky-500/50 hover:bg-slate-800/80"}`}
+                    >
+                      <span className={`text-[10px] font-bold truncate mr-1 ${isSelected ? "text-white" : "text-sky-200"}`}>{type}</span>
+                      <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-amber-300" : "text-white"}`}>
+                        {count} <span className="text-[10px] font-normal opacity-70">台</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="bg-slate-950/40 p-3 rounded-xl border border-sky-800/40 flex justify-between items-center">
+                <span className="text-xs text-sky-300 font-bold">💰 單車租借對帳 (預計/已收)</span>
+                <div className="text-right leading-none">
+                  <span className="text-lg font-black text-amber-400">¥{totalBikeCollectedRevenue.toLocaleString()}</span>
+                  <span className="text-[10px] text-slate-500 font-bold mx-1">/</span>
+                  <span className="text-xs font-bold text-slate-400">¥{totalBikeExpectedRevenue.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {displayedBikes.length === 0 ? (
+              <div className="text-center py-10 bg-white rounded-2xl border border-slate-200">
+                <p className="text-slate-400 text-sm font-bold">查無符合條件的單車名單</p>
+              </div>
+            ) : (
+              displayedBikes.map((member, _idx) => {
                 const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
                 const isBikeGiven = member.單車點收 === "TRUE";
+                const typeStr = member.單車需求 ? String(member.單車需求).trim() : "";
+                const price = getBikePrice(typeStr);
 
                 return (
-                  <div key={originalIdx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex justify-between items-center">
+                  <div key={originalIdx} className={`bg-white border-2 p-4 rounded-2xl shadow-sm flex justify-between items-center transition-colors ${isBikeGiven ? "border-slate-200/50 opacity-80" : "border-sky-400 shadow-md"}`}>
                     <div>
-                      <h3 className="text-base font-black text-slate-800">{member.姓名}</h3>
-                      <span className="inline-block mt-1 bg-sky-100 text-sky-800 text-[10px] px-2 py-0.5 rounded-md font-bold">{member.單車需求}</span>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-black text-slate-800">{member.姓名}</h3>
+                        {price > 0 && !isBikeGiven && (
+                          <span className="text-[10px] bg-red-100 text-red-700 font-black px-1.5 py-0.5 rounded-md animate-pulse">待收 ¥{price.toLocaleString()}</span>
+                        )}
+                        {price > 0 && isBikeGiven && (
+                          <span className="text-[10px] bg-emerald-100 text-emerald-700 font-black px-1.5 py-0.5 rounded-md">✅ 已收 ¥{price.toLocaleString()}</span>
+                        )}
+                      </div>
+                      <span className="inline-block mt-1 bg-sky-100 text-sky-800 text-[10px] px-2 py-0.5 rounded-md font-bold">{typeStr}</span>
                     </div>
-                    <label className="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 shadow-sm active:scale-95">
+                    
+                    <label className="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 shadow-sm active:scale-95 transition-all">
                       <input type="checkbox" className="w-5 h-5 rounded text-sky-600" checked={isBikeGiven} onChange={(e) => handleMemberFieldUpdate(originalIdx, "單車點收", e.target.checked ? "TRUE" : "FALSE")}/>
-                      <span className={`font-black text-xs ${isBikeGiven ? "text-sky-800" : "text-slate-500"}`}>{isBikeGiven ? "已領車" : "點收"}</span>
+                      <span className={`font-black text-xs ${isBikeGiven ? "text-sky-800" : "text-slate-500"}`}>{isBikeGiven ? "✅ 收款點收" : "確認點收"}</span>
                     </label>
                   </div>
                 );
@@ -559,7 +680,7 @@ export default function FiveDaysDashboardPage() {
           </div>
         )}
 
-        {/* ================= 總房表、裝備、餐點、名單、聯絡人 (共用簡化邏輯) ================= */}
+        {/* ================= 其他共用區塊 (分組, 客戶, 裝備, 餐點) ================= */}
         {view === "groupDetail" && (
           <div className="space-y-6">
             {tourGroups.map((groupName) => {
@@ -620,13 +741,22 @@ export default function FiveDaysDashboardPage() {
                     <h3 className="text-base font-black text-slate-800">{member.姓名}</h3>
                     <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
                       <p className="text-sm font-black text-slate-700">{member.裝備明細}</p>
-                      <input type="text" placeholder="損壞回報..." value={member.問題回報 || ""} onChange={(e) => handleLocalTextChange(originalIdx, "問題回報", e.target.value)} onBlur={(e) => handleMemberFieldUpdate(originalIdx, "問題回報", e.target.value)} className="w-full text-xs font-bold border border-red-200 rounded-lg px-2 py-1.5 bg-red-50"/>
+                      <input 
+                        type="text" 
+                        placeholder="請填寫損壞或遺失狀況..." 
+                        value={member.問題回報 || ""} 
+                        onChange={(e) => handleLocalTextChange(originalIdx, "問題回報", e.target.value)} 
+                        onBlur={(e) => handleMemberFieldUpdate(originalIdx, "問題回報", e.target.value)} 
+                        className="w-full text-xs font-bold border border-red-200 rounded-lg px-3 py-2 bg-red-50 text-slate-800 placeholder-red-300 focus:outline-none focus:border-red-400"
+                      />
                       <div className="flex gap-2 pt-1">
-                        <label className="flex-1 flex justify-center items-center gap-2 bg-white px-2 py-2 rounded-lg border border-slate-200">
-                          <input type="checkbox" className="w-4 h-4 text-sky-600" checked={member.裝備借出 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備借出", e.target.checked ? "TRUE" : "FALSE")}/><span className="text-xs font-bold">已借出</span>
+                        <label className="flex-1 flex justify-center items-center gap-2 bg-white px-2 py-2.5 rounded-lg border border-slate-200 shadow-sm active:scale-95 cursor-pointer">
+                          <input type="checkbox" className="w-4 h-4 text-sky-600 rounded" checked={member.裝備借出 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備借出", e.target.checked ? "TRUE" : "FALSE")}/>
+                          <span className="text-xs font-black text-slate-700">已借出</span>
                         </label>
-                        <label className="flex-1 flex justify-center items-center gap-2 bg-white px-2 py-2 rounded-lg border border-slate-200">
-                          <input type="checkbox" className="w-4 h-4 text-sky-600" checked={member.裝備歸還 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備歸還", e.target.checked ? "TRUE" : "FALSE")}/><span className="text-xs font-bold">已歸還</span>
+                        <label className="flex-1 flex justify-center items-center gap-2 bg-white px-2 py-2.5 rounded-lg border border-slate-200 shadow-sm active:scale-95 cursor-pointer">
+                          <input type="checkbox" className="w-4 h-4 text-sky-600 rounded" checked={member.裝備歸還 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備歸還", e.target.checked ? "TRUE" : "FALSE")}/>
+                          <span className="text-xs font-black text-slate-700">已歸還</span>
                         </label>
                       </div>
                     </div>
@@ -637,43 +767,80 @@ export default function FiveDaysDashboardPage() {
         )}
 
         {view === "meals" && (
-          <div className="space-y-3">
-             {displayedMeals.map((member, _idx) => {
+          <div className="space-y-4">
+            <div className="bg-gradient-to-br from-sky-800 to-slate-900 text-white p-4 rounded-2xl shadow-md border border-sky-700">
+              <div className="flex justify-between items-end mb-3">
+                <div>
+                  <p className="text-[9px] text-sky-400 font-black tracking-widest uppercase">Catering Filter & Stats</p>
+                  <h3 className="text-sm font-black text-slate-100 mt-0.5">🍱 點擊下方餐點分類可快速篩選</h3>
+                </div>
+                {selectedMealFilter && (
+                  <button onClick={() => setSelectedMealFilter(null)} className="text-[10px] bg-slate-700 text-slate-200 px-2 py-1 rounded-md border border-slate-500 transition-all active:scale-95">✖ 取消篩選</button>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {Object.entries(mealStats).map(([meal, count]) => {
+                  const isSelected = selectedMealFilter === meal;
+                  return (
+                    <button key={meal} onClick={() => setSelectedMealFilter(isSelected ? null : meal)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all active:scale-95 text-left ${isSelected ? "bg-sky-600 border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-lg" : "bg-slate-950/40 border border-sky-800/40 opacity-80 hover:opacity-100"}`}>
+                      <span className={`text-xs font-bold truncate mr-1 ${isSelected ? "text-white" : "text-slate-300"}`}>{meal}</span>
+                      <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-amber-300" : "text-sky-400"}`}>{count} <span className="text-[10px] font-bold opacity-70">份</span></span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="bg-slate-950/40 p-3 rounded-xl border border-sky-800/40">
+                <div className="flex justify-between items-end mb-1.5">
+                  <span className="text-xs text-slate-300 font-bold">{selectedMealFilter ? `「${selectedMealFilter}」發放進度` : "全團總發放進度"}</span>
+                  <div className="text-right leading-none">
+                    <span className="text-lg font-black text-sky-400">{mealGiven}</span>
+                    <span className="text-[10px] text-slate-500 font-bold mx-1">/</span>
+                    <span className="text-xs font-bold text-slate-400">{mealTotal}</span>
+                  </div>
+                </div>
+                <div className="w-full bg-slate-800 rounded-full h-2">
+                  <div className={`h-2 rounded-full transition-all duration-500 ease-out ${mealRemain === 0 && mealTotal > 0 ? "bg-amber-400" : "bg-sky-500"}`} style={{ width: `${mealPercent}%` }}></div>
+                </div>
+              </div>
+            </div>
+
+            {displayedMeals.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-slate-400 text-sm font-bold">查無符合條件的餐點名單</p>
+              </div>
+            ) : (
+              displayedMeals.map((member, _idx) => {
                 const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
+                const isVegetarian = String(member.病史 || "").includes("素") || String(member.禁忌食材 || "").includes("素") || String(member.五合目餐點 || "").includes("素");
+                const isClaimed = member.餐點領取 === "TRUE";
+
                 return (
-                  <div key={originalIdx} className="bg-white border border-slate-200 p-3 rounded-xl flex justify-between items-center">
-                    <div>
-                      <h3 className="text-sm font-black text-slate-800">{member.姓名}</h3>
-                      <p className="text-[10px] text-amber-600 font-bold mt-0.5">{member.五合目餐點 || "常規餐點"}</p>
+                  <div key={originalIdx} className={`bg-white border-2 p-4 rounded-2xl shadow-sm space-y-3 transition-colors ${isClaimed ? "border-slate-200/50 opacity-80" : "border-sky-400 shadow-md"}`}>
+                    <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-3">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-black text-slate-800">{member.姓名}</h3>
+                        {!isClaimed && <span className="text-[10px] bg-amber-100 text-amber-700 font-black px-1.5 py-0.5 rounded-md animate-pulse">待領取</span>}
+                        {isVegetarian && <span className="text-[10px] bg-emerald-600 text-white font-black px-1.5 py-0.5 rounded-md">🥬 素食</span>}
+                      </div>
+                      <span className="text-xs font-bold text-slate-500">{member.分組 || "未編組"}</span>
                     </div>
-                    <label className="flex items-center gap-2 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200">
-                      <input type="checkbox" className="w-4 h-4 text-sky-600" checked={member.餐點領取 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "餐點領取", e.target.checked ? "TRUE" : "FALSE")}/>
-                      <span className="font-bold text-[10px]">已領</span>
-                    </label>
+                    <div className="bg-sky-50/60 border border-sky-100 rounded-xl p-3 flex justify-between items-center">
+                      <div>
+                        <p className="text-[10px] text-sky-800 font-black mb-0.5">🍱 五合目餐食</p>
+                        <p className="text-sm font-black text-slate-800">{member.五合目餐點 || "常規餐點"}</p>
+                      </div>
+                      <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-sky-200 shadow-sm active:scale-95 transition-all cursor-pointer">
+                        <input type="checkbox" className="w-5 h-5 rounded text-sky-600" checked={isClaimed} onChange={(e) => handleMemberFieldUpdate(originalIdx, "餐點領取", e.target.checked ? "TRUE" : "FALSE")}/>
+                        <span className={`font-black text-xs ${isClaimed ? "text-sky-800" : "text-slate-400"}`}>{isClaimed ? "已點收" : "確認領取"}</span>
+                      </label>
+                    </div>
                   </div>
                 );
-              })}
+              })
+            )}
           </div>
-        )}
-
-        {view === "roomSummary" && (
-           <div className="space-y-3">
-             {roomData.map((room, idx) => {
-               const guests = getGuestsList(room);
-               return (
-                 <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
-                   <div className="flex-1">
-                     <div className="text-[9px] text-sky-600 font-bold mb-0.5">{room.住宿階段} | {room.飯店名稱}</div>
-                     <div className="text-xs font-black text-slate-800">{guests.length > 0 ? guests.join("、") : "未排"}</div>
-                   </div>
-                   <div className="ml-2 pl-2 border-l border-slate-200 flex flex-col items-center justify-center min-w-[50px]">
-                     <span className="text-[9px] text-slate-400 font-bold">房號</span>
-                     <span className={`text-base font-black ${room.實際房號 ? "text-sky-700" : "text-slate-300"}`}>{room.實際房號 || "—"}</span>
-                   </div>
-                 </div>
-               );
-             })}
-           </div>
         )}
 
       </div>
