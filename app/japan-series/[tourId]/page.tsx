@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
+// 🌟 拔除裝備、餐點、單車、分組，留下最精簡強悍的日本線核心
 type ViewState = "menu" | "checkin" | "customerInfo" | "rooms" | "roomSummary";
 
 interface OfflineQueueItem {
@@ -26,7 +27,7 @@ export default function JapanSeriesDashboardPage() {
   const [roomData, setRoomData] = useState<any[]>([]);
   const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
 
-  // ✈️ 雙引擎：接機與送機模式過濾
+  // ✈️ 接送機模式過濾
   const [selectedPickupFilter, setSelectedPickupFilter] = useState<string | null>(null);
   const [selectedDropoffFilter, setSelectedDropoffFilter] = useState<string | null>(null);
   const [pickupStats, setPickupStats] = useState<{ [key: string]: number }>({});
@@ -34,6 +35,9 @@ export default function JapanSeriesDashboardPage() {
 
   const [selectedHotelStage, setSelectedHotelStage] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // 🌟 新增：房型過濾器狀態
+  const [selectedRoomTypeFilter, setSelectedRoomTypeFilter] = useState<string | null>(null);
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
 
@@ -42,11 +46,9 @@ export default function JapanSeriesDashboardPage() {
     const dropoffMap: { [key: string]: number } = {};
 
     members.forEach((m: any) => {
-      // 計算接機
       const pMode = m.接機模式 ? String(m.接機模式).trim() : "未定";
       pickupMap[pMode] = (pickupMap[pMode] || 0) + 1;
 
-      // 計算送機
       const dMode = m.送機模式 ? String(m.送機模式).trim() : "未定";
       dropoffMap[dMode] = (dropoffMap[dMode] || 0) + 1;
     });
@@ -212,6 +214,7 @@ export default function JapanSeriesDashboardPage() {
     }
   };
 
+  // ⚡ 批次上傳引擎 (Promise.all)
   const handleSaveAllAndSummary = async () => {
     setLoading(true);
     setSyncStatus("saving");
@@ -270,6 +273,12 @@ export default function JapanSeriesDashboardPage() {
     window.print();
   };
 
+  // 🌟 切換飯店階段時，自動清除房型過濾器
+  const handleHotelStageChange = (stage: string) => {
+    setSelectedHotelStage(stage);
+    setSelectedRoomTypeFilter(null);
+  };
+
   if (loading && memberData.length === 0) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -282,9 +291,7 @@ export default function JapanSeriesDashboardPage() {
   if (availableStages.length === 0) availableStages.push("首日住宿");
   const currentStage = availableStages.includes(selectedHotelStage) ? selectedHotelStage : availableStages[0];
 
-  // 🔍 全域智慧搜尋與「雙引擎」接送機過濾
   let displayedCheckins = [...memberData];
-  
   if (selectedPickupFilter) {
     displayedCheckins = displayedCheckins.filter(m => (m.接機模式 ? String(m.接機模式).trim() : "未定") === selectedPickupFilter);
   }
@@ -294,12 +301,26 @@ export default function JapanSeriesDashboardPage() {
   if (searchQuery.trim() !== "") {
     displayedCheckins = displayedCheckins.filter(m => m.姓名?.includes(searchQuery) || m.手機?.includes(searchQuery));
   }
-  
   displayedCheckins.sort((a, b) => (a.報到狀態 === "TRUE" ? 1 : -1));
 
+  // 🌟 房表資料運算：加入動態房型統計與過濾
   const currentStageRooms = roomData.filter((r) => r.住宿階段 === currentStage);
   const currentStageHotelName = currentStageRooms.length > 0 && currentStageRooms[0].飯店名稱 ? currentStageRooms[0].飯店名稱 : "未定飯店";
   const currentStageCheckInDate = currentStageRooms.length > 0 && currentStageRooms[0].入住日期 ? currentStageRooms[0].入住日期 : "未定日期";
+
+  const currentStageRoomStats: { [key: string]: number } = {};
+  currentStageRooms.forEach(r => {
+    const rType = r.房型 ? String(r.房型).trim() : "未定房型";
+    currentStageRoomStats[rType] = (currentStageRoomStats[rType] || 0) + 1;
+  });
+
+  let displayedRooms = [...currentStageRooms];
+  if (selectedRoomTypeFilter) {
+    displayedRooms = displayedRooms.filter(r => {
+      const rType = r.房型 ? String(r.房型).trim() : "未定房型";
+      return rType === selectedRoomTypeFilter;
+    });
+  }
 
   return (
     <>
@@ -337,7 +358,7 @@ export default function JapanSeriesDashboardPage() {
                 返回總表
               </Link>
             ) : (
-              <button onClick={() => { setView("menu"); setSelectedPickupFilter(null); setSelectedDropoffFilter(null); setSearchQuery(""); }} className="text-slate-900 text-xs font-black bg-white/90 hover:bg-white px-4 py-2 rounded-xl active:scale-95 transition-all shadow-md backdrop-blur-sm">
+              <button onClick={() => { setView("menu"); setSelectedPickupFilter(null); setSelectedDropoffFilter(null); setSearchQuery(""); setSelectedRoomTypeFilter(null); }} className="text-slate-900 text-xs font-black bg-white/90 hover:bg-white px-4 py-2 rounded-xl active:scale-95 transition-all shadow-md backdrop-blur-sm">
                 ↩ 回選單
               </button>
             )}
@@ -398,7 +419,7 @@ export default function JapanSeriesDashboardPage() {
                 <button onClick={() => setView("rooms")} className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-slate-200 active:scale-[0.98] transition-all hover:border-violet-300">
                   <div className="text-left">
                     <h2 className="text-lg font-black text-slate-800">🏨 飯店分房登記</h2>
-                    <p className="text-xs text-slate-500 mt-1">動態住宿階段切換、填寫實際房號</p>
+                    <p className="text-xs text-slate-500 mt-1">動態階段切換、<span className="text-violet-600 font-bold">房型統計過濾</span></p>
                   </div>
                   <span className="text-xl text-violet-600 font-bold">➔</span>
                 </button>
@@ -406,7 +427,7 @@ export default function JapanSeriesDashboardPage() {
                 <button onClick={() => setView("roomSummary")} className="flex items-center justify-between bg-violet-50 p-5 rounded-2xl shadow-sm border border-violet-200 active:scale-[0.98] transition-all">
                   <div className="text-left">
                     <h2 className="text-lg font-black text-violet-900">🗝️ 飯店總房表快速對照</h2>
-                    <p className="text-xs text-violet-700 mt-1">櫃檯領鑰匙專用、列印紙本房表</p>
+                    <p className="text-xs text-violet-700 mt-1">櫃檯點收、<span className="font-bold text-violet-900">篩選列印紙本房表</span></p>
                   </div>
                   <span className="text-xl text-violet-600 font-bold">➔</span>
                 </button>
@@ -416,7 +437,6 @@ export default function JapanSeriesDashboardPage() {
             {/* ================= ✈️ 機場接送與報到 ================= */}
             {view === "checkin" && (
               <div className="space-y-4">
-                {/* 🔍 智慧搜尋列 */}
                 <div className="bg-white border border-slate-200 p-2 rounded-2xl shadow-sm flex items-center gap-2">
                   <span className="pl-3 text-lg">🔍</span>
                   <input 
@@ -432,7 +452,6 @@ export default function JapanSeriesDashboardPage() {
                 </div>
 
                 <div className="bg-gradient-to-br from-violet-600 to-indigo-700 text-white p-4 rounded-2xl shadow-md shadow-violet-200">
-                  {/* 🛬 接機過濾器 */}
                   <div className="flex justify-between items-end mb-3">
                     <div>
                       <p className="text-[9px] text-violet-200 font-black tracking-widest uppercase">Pick-up Filter</p>
@@ -456,7 +475,6 @@ export default function JapanSeriesDashboardPage() {
 
                   <hr className="border-white/20 my-4" />
 
-                  {/* 🛫 送機過濾器 */}
                   <div className="flex justify-between items-end mb-3">
                     <div>
                       <p className="text-[9px] text-violet-200 font-black tracking-widest uppercase">Drop-off Filter</p>
@@ -574,14 +592,14 @@ export default function JapanSeriesDashboardPage() {
               </div>
             )}
 
-            {/* ================= 🏨 多階段飯店排房 ================= */}
+            {/* ================= 🏨 多階段飯店排房 (加入房型過濾) ================= */}
             {view === "rooms" && (
               <div className="space-y-4">
                 <div className="bg-slate-900 p-2 rounded-2xl flex gap-1 shadow-md sticky top-[72px] z-10 overflow-x-auto whitespace-nowrap hide-scrollbar">
                   {availableStages.map(stage => (
                     <button 
                       key={stage} 
-                      onClick={() => setSelectedHotelStage(stage)}
+                      onClick={() => handleHotelStageChange(stage)}
                       className={`flex-1 min-w-[80px] px-2 py-2 text-[11px] font-black rounded-xl transition-all ${currentStage === stage ? "bg-violet-500 text-white shadow-sm" : "bg-transparent text-slate-400 hover:bg-slate-800"}`}
                     >
                       {stage}
@@ -589,13 +607,46 @@ export default function JapanSeriesDashboardPage() {
                   ))}
                 </div>
 
-                {currentStageRooms.length === 0 ? (
+                {/* 🌟 房型過濾與統計面板 (Indigo) */}
+                <div className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white p-4 rounded-2xl shadow-md shadow-indigo-200 mb-4">
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <p className="text-[9px] text-indigo-200 font-black tracking-widest uppercase">Room Type Filter</p>
+                      <h3 className="text-sm font-black text-white mt-0.5">🏨 點擊過濾房型 ({currentStage})</h3>
+                    </div>
+                    {selectedRoomTypeFilter && (
+                      <button onClick={() => setSelectedRoomTypeFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">
+                        ✖ 取消
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(currentStageRoomStats).map(([rType, count]) => {
+                      const isSelected = selectedRoomTypeFilter === rType;
+                      return (
+                        <button 
+                          key={rType} 
+                          onClick={() => setSelectedRoomTypeFilter(isSelected ? null : rType)}
+                          className={`p-2.5 rounded-xl flex justify-between items-center transition-all active:scale-95 text-left
+                            ${isSelected ? "bg-white text-indigo-700 shadow-md scale-[1.02]" : "bg-black/10 border border-white/20 hover:bg-black/20"}`}
+                        >
+                          <span className={`text-[10px] font-bold truncate mr-1 ${isSelected ? "text-indigo-700" : "text-indigo-100"}`}>{rType}</span>
+                          <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-indigo-600" : "text-white"}`}>
+                            {count} <span className="text-[10px] font-normal opacity-70">間</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {displayedRooms.length === 0 ? (
                   <div className="text-center py-10 bg-white rounded-2xl border border-slate-200">
-                    <p className="text-slate-400 text-sm font-bold">目前【{currentStage}】無排房資料</p>
+                    <p className="text-slate-400 text-sm font-bold">目前無符合條件的排房資料</p>
                   </div>
                 ) : (
-                  currentStageRooms.map((room) => {
-                    const originalIdx = roomData.findIndex(r => r === room);
+                  displayedRooms.map((room) => {
+                    const originalIdx = roomData.findIndex(r => r === room); // 追蹤回原始 Array 以儲存
                     const guests = getGuestsList(room);
                     const dietWarnings = getRoomDietaryRestrictions(guests);
 
@@ -606,7 +657,7 @@ export default function JapanSeriesDashboardPage() {
                             <span className="text-[10px] bg-slate-100 text-slate-600 font-bold px-2 py-1 rounded-md border border-slate-200">入住：{room.入住日期 ? room.入住日期.substring(5) : "當日"}</span>
                             <h3 className="text-base font-black text-slate-800 mt-2">{room.飯店名稱}</h3>
                           </div>
-                          <span className="text-xs font-black text-violet-700 bg-violet-50 border border-violet-200 px-2.5 py-1 rounded-lg">{room.房型}</span>
+                          <span className="text-xs font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1 rounded-lg">{room.房型}</span>
                         </div>
 
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-2">
@@ -625,50 +676,63 @@ export default function JapanSeriesDashboardPage() {
 
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-black text-slate-700 whitespace-nowrap">分配房號：</span>
-                          <input type="text" placeholder="填寫實際房號" value={room.實際房號 || ""} onChange={(e) => handleRoomNumberChange(originalIdx, e.target.value)} className="flex-1 min-w-0 border-2 border-slate-300 rounded-xl px-3 py-2 font-black text-slate-800 focus:outline-none focus:border-violet-500 bg-slate-50 text-sm"/>
-                          <button onClick={() => saveSingleRoomNumber(originalIdx)} disabled={savingIdx !== null} className="bg-violet-600 hover:bg-violet-500 text-white font-black text-xs px-3 py-2.5 rounded-xl active:scale-95 disabled:bg-slate-300 transition-all">{savingIdx === originalIdx ? "⏳" : "💾 儲存"}</button>
+                          <input type="text" placeholder="填寫實際房號" value={room.實際房號 || ""} onChange={(e) => handleRoomNumberChange(originalIdx, e.target.value)} className="flex-1 min-w-0 border-2 border-slate-300 rounded-xl px-3 py-2 font-black text-slate-800 focus:outline-none focus:border-indigo-500 bg-slate-50 text-sm"/>
+                          <button onClick={() => saveSingleRoomNumber(originalIdx)} disabled={savingIdx !== null} className="bg-indigo-600 hover:bg-indigo-500 text-white font-black text-xs px-3 py-2.5 rounded-xl active:scale-95 disabled:bg-slate-300 transition-all">{savingIdx === originalIdx ? "⏳" : "💾 儲存"}</button>
                         </div>
                       </div>
                     );
                   })
                 )}
                 
-                <button onClick={handleSaveAllAndSummary} className="w-full mt-6 bg-violet-700 hover:bg-violet-600 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-center text-sm tracking-wide">⚡ 一鍵批次同步雲端並看總表 ➔</button>
+                <button onClick={handleSaveAllAndSummary} className="w-full mt-6 bg-indigo-700 hover:bg-indigo-600 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-center text-sm tracking-wide">⚡ 一鍵批次同步雲端並看總表 ➔</button>
               </div>
             )}
 
-            {/* ================= 🗝️ 總房表快速對照 & 列印 ================= */}
+            {/* ================= 🗝️ 總房表快速對照 & 列印 (加入房型過濾) ================= */}
             {view === "roomSummary" && (
               <div className="space-y-4">
                 <div className="bg-slate-900 p-2 rounded-2xl flex gap-1 shadow-md sticky top-[72px] z-10 overflow-x-auto whitespace-nowrap hide-scrollbar">
                   {availableStages.map(stage => (
                     <button 
                       key={stage} 
-                      onClick={() => setSelectedHotelStage(stage)}
-                      className={`flex-1 min-w-[80px] px-2 py-2 text-[11px] font-black rounded-xl transition-all ${currentStage === stage ? "bg-violet-500 text-white shadow-sm" : "bg-transparent text-slate-400 hover:bg-slate-800"}`}
+                      onClick={() => handleHotelStageChange(stage)}
+                      className={`flex-1 min-w-[80px] px-2 py-2 text-[11px] font-black rounded-xl transition-all ${currentStage === stage ? "bg-fuchsia-500 text-white shadow-sm" : "bg-transparent text-slate-400 hover:bg-slate-800"}`}
                     >
                       {stage}
                     </button>
                   ))}
                 </div>
 
-                <div className="bg-gradient-to-br from-violet-500 to-indigo-600 text-white p-4 rounded-2xl shadow-md shadow-violet-200 mb-2">
-                  <p className="text-[9px] text-violet-200 font-black tracking-widest uppercase">Room-type Automation Stats</p>
-                  <h3 className="text-sm font-black text-white mt-0.5 mb-3">🏨 【{currentStage}】房型總量清點</h3>
+                {/* 🌟 房型過濾與統計面板 (Fuchsia) */}
+                <div className="bg-gradient-to-br from-fuchsia-500 to-purple-600 text-white p-4 rounded-2xl shadow-md shadow-fuchsia-200 mb-2">
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <p className="text-[9px] text-fuchsia-200 font-black tracking-widest uppercase">Room-type Filter & Stats</p>
+                      <h3 className="text-sm font-black text-white mt-0.5">🏨 點擊過濾房型 ({currentStage})</h3>
+                    </div>
+                    {selectedRoomTypeFilter && (
+                      <button onClick={() => setSelectedRoomTypeFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">
+                        ✖ 取消
+                      </button>
+                    )}
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {(() => {
-                      const currentStats: { [key: string]: number } = {};
-                      currentStageRooms.forEach(r => {
-                        const rType = r.房型 ? String(r.房型).trim() : "未定房型";
-                        currentStats[rType] = (currentStats[rType] || 0) + 1;
-                      });
-                      return Object.entries(currentStats).map(([rType, count]) => (
-                        <div key={rType} className="bg-black/10 border border-white/20 p-2.5 rounded-xl flex justify-between items-center">
-                          <span className="text-[11px] font-bold text-violet-100 truncate mr-1">{rType}</span>
-                          <span className="text-base font-black text-white whitespace-nowrap">{count} <span className="text-[10px] text-violet-200 font-bold">間</span></span>
-                        </div>
-                      ));
-                    })()}
+                    {Object.entries(currentStageRoomStats).map(([rType, count]) => {
+                      const isSelected = selectedRoomTypeFilter === rType;
+                      return (
+                        <button 
+                          key={rType} 
+                          onClick={() => setSelectedRoomTypeFilter(isSelected ? null : rType)}
+                          className={`p-2.5 rounded-xl flex justify-between items-center transition-all active:scale-95 text-left
+                            ${isSelected ? "bg-white text-fuchsia-700 shadow-md scale-[1.02]" : "bg-black/10 border border-white/20 hover:bg-black/20"}`}
+                        >
+                          <span className={`text-[11px] font-bold truncate mr-1 ${isSelected ? "text-fuchsia-700" : "text-fuchsia-100"}`}>{rType}</span>
+                          <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-fuchsia-600" : "text-white"}`}>
+                            {count} <span className="text-[10px] font-normal opacity-70">間</span>
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -676,26 +740,26 @@ export default function JapanSeriesDashboardPage() {
                   onClick={handlePrintAction} 
                   className="w-full bg-slate-800 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2 hover:bg-slate-900"
                 >
-                  🖨️ 列印【{currentStage}】紙本房表 (供手寫)
+                  🖨️ 列印 {selectedRoomTypeFilter ? `【${selectedRoomTypeFilter}】` : `【${currentStage}】`} 紙本房表
                 </button>
 
-                {currentStageRooms.length === 0 ? (
+                {displayedRooms.length === 0 ? (
                   <div className="text-center py-10 bg-white rounded-2xl border border-slate-200">
-                    <p className="text-slate-400 text-sm font-bold">目前【{currentStage}】無排房資料</p>
+                    <p className="text-slate-400 text-sm font-bold">目前無符合條件的排房資料</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {currentStageRooms.map((room, idx) => {
+                    {displayedRooms.map((room, idx) => {
                       const guests = getGuestsList(room);
                       return (
-                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-violet-300 transition-colors">
+                        <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-fuchsia-300 transition-colors">
                           <div className="flex-1 pr-2">
-                            <div className="text-[9px] text-violet-600 font-bold mb-0.5">{room.入住日期 ? room.入住日期.substring(5) : "當日"} | {room.飯店名稱}</div>
+                            <div className="text-[9px] text-fuchsia-600 font-bold mb-0.5">{room.入住日期 ? room.入住日期.substring(5) : "當日"} | {room.飯店名稱}</div>
                             <div className="text-xs font-black text-slate-800 leading-relaxed">{guests.length > 0 ? guests.join(" 、 ") : <span className="text-slate-400 font-normal">未排房客</span>}</div>
                           </div>
                           <div className="ml-2 pl-3 border-l border-slate-200 flex flex-col items-center justify-center min-w-[55px]">
                             <span className="text-[9px] text-slate-400 font-bold mb-0.5">房號</span>
-                            <span className={`text-base font-black ${room.實際房號 ? "text-violet-600" : "text-slate-300"}`}>{room.實際房號 || "—"}</span>
+                            <span className={`text-base font-black ${room.實際房號 ? "text-fuchsia-600" : "text-slate-300"}`}>{room.實際房號 || "—"}</span>
                           </div>
                         </div>
                       );
@@ -709,13 +773,16 @@ export default function JapanSeriesDashboardPage() {
         </main>
       </div>
 
-      {/* ================= 🖨️ 列印專屬版面一：房間排列表 ================= */}
+      {/* ================= 🖨️ 列印專屬版面一：房間排列表 (吃 displayedRooms 過濾結果) ================= */}
       {view === "roomSummary" && (
         <div className="print-only w-full p-8 bg-white text-black min-h-screen">
           <div className="text-center border-b-2 border-black pb-4 mb-6">
             <h1 className="text-3xl font-black mb-2">TAKENO 日本系列團 - 住宿排房表</h1>
             <h2 className="text-xl font-bold">團號：{tourId} ｜ 住宿階段：【{currentStage}】</h2>
-            <h3 className="text-lg font-bold mt-1">入住日期：{currentStageCheckInDate} ｜ 飯店名稱：{currentStageHotelName}</h3>
+            <h3 className="text-lg font-bold mt-1">
+              入住日期：{currentStageCheckInDate} ｜ 飯店名稱：{currentStageHotelName}
+              {selectedRoomTypeFilter && <span className="ml-2">｜ <span className="bg-black text-white px-2 py-0.5 rounded">過濾：{selectedRoomTypeFilter}</span></span>}
+            </h3>
           </div>
           
           <table className="w-full">
@@ -727,12 +794,12 @@ export default function JapanSeriesDashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {currentStageRooms.length === 0 ? (
+              {displayedRooms.length === 0 ? (
                 <tr>
                   <td colSpan={3} className="text-center py-6">此階段尚無排房資料</td>
                 </tr>
               ) : (
-                currentStageRooms.map((room, idx) => {
+                displayedRooms.map((room, idx) => {
                   const guests = getGuestsList(room);
                   return (
                     <tr key={idx}>
