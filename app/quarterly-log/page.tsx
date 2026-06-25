@@ -113,7 +113,6 @@ export default function QuarterlyLogPage() {
     fetchLogSystemData();
   }, []);
 
-  // ==================== [建團功能] ====================
   const handleCreateTour = async (e: React.FormEvent) => {
     e.preventDefault();
     if (userRole !== "admin") return;
@@ -166,7 +165,6 @@ export default function QuarterlyLogPage() {
     }
   };
 
-  // ==================== [新增日誌功能] ====================
   const handleCreateLog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (userRole !== "admin") return;
@@ -210,7 +208,6 @@ export default function QuarterlyLogPage() {
     }
   };
 
-  // ==================== [編輯日誌功能] ====================
   const openEditModal = (log: LogEvent) => {
     if (userRole !== "admin") return;
     setEditingLog(log);
@@ -275,7 +272,6 @@ export default function QuarterlyLogPage() {
     }
   };
 
-  // ==================== [刪除日誌功能] ====================
   const handleDeleteLog = async (log: LogEvent) => {
     if (userRole !== "admin") return;
     if (!confirm("確定要刪除這筆工作安排嗎？刪除後無法復原！")) return;
@@ -308,7 +304,6 @@ export default function QuarterlyLogPage() {
     window.print();
   };
 
-  // ERP 智慧核心時間軸演算法
   const generateTimeline = (mode: "all" | "personal") => {
     const timelineMap: { [dateStr: string]: { activeTours: string[]; events: LogEvent[] } } = {};
     
@@ -423,7 +418,7 @@ export default function QuarterlyLogPage() {
       <div className="w-full bg-stone-900 text-white py-4 px-6 sticky top-0 z-20 flex items-center justify-between shadow-lg border-b border-amber-500/40 no-print">
         <div>
           <span className="text-[10px] font-black bg-gradient-to-r from-amber-500 to-orange-500 text-stone-950 px-2.5 py-0.5 rounded-full uppercase tracking-widest">
-            Yuenor ERP Dispatch Center
+            TAKENO ERP DISPATCH CENTER
           </span>
           <h1 className="text-lg font-black text-stone-50 mt-1 tracking-wide">
             {subView === "my-schedule" && `📅 ${currentUserName} 嚮導專屬班表`}
@@ -462,7 +457,6 @@ export default function QuarterlyLogPage() {
         )}
       </div>
 
-      {/* 同步連線狀態條 */}
       <div className="w-full max-w-md px-4 mt-3 no-print">
         <div className="text-center py-1.5 rounded-xl text-[10px] font-bold border bg-stone-200 text-stone-500 shadow-inner">
           🌿 岳野營運總腦就緒 | 登入身分：<span className={`uppercase font-black ${userRole === "admin" ? "text-rose-700" : "text-emerald-700"}`}>{userRole === "admin" ? "👑 系統管理員 (Admin)" : "🧗 隨團嚮導 (Guide)"}</span>
@@ -471,7 +465,7 @@ export default function QuarterlyLogPage() {
 
       <div className="w-full max-w-md px-4 mt-4 no-print">
         
-        {/* ================= 🌟 嚮導個人專屬班表視角 ================= */}
+        {/* ================= 嚮導個人專屬班表視角 ================= */}
         {subView === "my-schedule" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-r from-emerald-800 to-emerald-950 p-4 rounded-2xl shadow-sm text-white text-left border border-emerald-700">
@@ -523,7 +517,7 @@ export default function QuarterlyLogPage() {
           </div>
         )}
 
-        {/* ================= 區塊：季度工作日誌一覽表 (Review 大全景) ================= */}
+        {/* ================= 季度工作日誌一覽表 (Review 大全景) ================= */}
         {subView === "review" && (
           <div className="space-y-4">
             <div className="bg-white border border-stone-200 p-4 rounded-2xl shadow-sm space-y-3">
@@ -612,7 +606,7 @@ export default function QuarterlyLogPage() {
           </div>
         )}
 
-        {/* ================= 區塊二：工作日誌設定 (每日安排新增) ================= */}
+        {/* ================= 工作日誌設定 (每日安排新增) ================= */}
         {subView === "settings" && userRole === "admin" && (
           <form onSubmit={handleCreateLog} className="bg-white border border-stone-200 p-5 rounded-2xl shadow-sm space-y-4">
             <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Log Event Factory</p>
@@ -657,7 +651,7 @@ export default function QuarterlyLogPage() {
           </form>
         )}
 
-        {/* ================= 🌟 🖨️ 智能出團報表列印中心 ================= */}
+        {/* ================= 🖨️ 智能出團報表列印中心 ================= */}
         {subView === "print" && userRole === "admin" && (
           <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-sm space-y-4">
             <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Report Print Center</p>
@@ -706,7 +700,7 @@ export default function QuarterlyLogPage() {
           </div>
         )}
 
-        {/* ================= 區塊三：工作日誌後台 (前期獨立建團) ================= */}
+        {/* ================= 工作日誌後台 (前期獨立建團) ================= */}
         {subView === "backoffice" && userRole === "admin" && (
           <form onSubmit={handleCreateTour} className="bg-white border border-stone-200 p-5 rounded-2xl shadow-sm space-y-4">
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs font-bold text-amber-900 leading-relaxed">
@@ -735,9 +729,9 @@ export default function QuarterlyLogPage() {
               </select>
             </div>
             {formTourName === "日本登山系列團" && (
-              <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
+              <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 mt-2 transition-all">
                 <label className="text-xs font-black text-emerald-800 block mb-1">🎯 確切活動名稱 (必填)</label>
-                <input type="text" placeholder="例如：槍岳表銀座..." value={formCustomActivityName} onChange={(e) => setFormCustomActivityName(e.target.value)} className="w-full border-2 border-emerald-200 rounded-xl p-2 font-bold text-stone-800 bg-white focus:outline-none focus:border-emerald-600"/>
+                <input type="text" placeholder="例如：槍岳表銀座、北阿爾卑斯健行..." value={formCustomActivityName} onChange={(e) => setFormCustomActivityName(e.target.value)} className="w-full border-2 border-emerald-200 rounded-xl p-2 font-bold text-stone-800 bg-white focus:outline-none focus:border-emerald-600"/>
               </div>
             )}
 
@@ -763,7 +757,7 @@ export default function QuarterlyLogPage() {
       {/* ================= 🌟 智慧列印純淨區 ================= */}
       <div className="print-only w-full p-8 text-black bg-white">
         <div className="text-center border-b-4 border-black pb-4 mb-6">
-          <h1 className="text-2xl font-black tracking-widest text-black">岳野登山營運調度資源總報表</h1>
+          <h1 className="text-2xl font-black tracking-widest text-black">TAKENO 營運調度資源總報表</h1>
           <p className="text-sm font-bold text-black mt-1">
             {printType === "tour" 
               ? `出團梯次調度報告：【${printTourId}】 ${selectedTourObj ? selectedTourObj.團名 : ""} (出發日期: ${selectedTourObj ? selectedTourObj.出發日期 : "未定"})` 
@@ -805,17 +799,17 @@ export default function QuarterlyLogPage() {
         )}
 
         <div className="mt-10 border-t border-black pt-4 text-center text-[10px] text-black">
-          © 岳野精準營運管理調度系統 (Yuenor Expedition) — 內部機密公文檔案，請妥善保管。
+          © TAKENO 精準營運管理調度系統 (Takeno Expedition) — 內部機密公文檔案，請妥善保管。
         </div>
       </div>
 
-      {/* ================= 🌟 [編輯日誌的浮動視窗 Modal] (全面修正文字對比度) ================= */}
+      {/* ================= 浮動編輯視窗 Modal ================= */}
       {editingLog && userRole === "admin" && (
         <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="bg-stone-900 text-amber-400 p-4 flex justify-between items-center border-b-2 border-amber-500">
               <span className="font-black text-sm">✏️ 編輯調度日誌</span>
-              <button onClick={closeEditModal} disabled={syncStatus === "saving"} className="text-stone-400 hover:text-white font-black">✖</button>
+              <button onClick={closeEditModal} disabled={syncStatus === "saving"} className="text-stone-400 hover:text-white font-black disabled:opacity-50">✖</button>
             </div>
             <div className="p-5 overflow-y-auto bg-stone-100">
               <form onSubmit={handleUpdateLog} className="space-y-4">
@@ -860,8 +854,10 @@ export default function QuarterlyLogPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" onClick={closeEditModal} disabled={syncStatus === "saving"} className="w-1/3 bg-stone-300 text-stone-700 font-black py-3 rounded-xl disabled:opacity-50 transition-all hover:bg-stone-400">取消</button>
-                  <button type="submit" disabled={syncStatus === "saving"} className="w-2/3 bg-amber-500 text-stone-950 font-black py-3 rounded-xl shadow-md border border-amber-600/50 disabled:opacity-50 transition-all hover:bg-amber-400">💾 儲存修改</button>
+                  <button type="button" onClick={closeEditModal} disabled={syncStatus === "saving"} className="w-1/3 bg-stone-300 hover:bg-stone-400 text-stone-700 font-black py-3.5 rounded-xl shadow-sm transition-all disabled:opacity-50">取消</button>
+                  <button type="submit" disabled={syncStatus === "saving"} className="w-2/3 bg-amber-500 hover:bg-amber-400 text-stone-950 font-black py-3.5 rounded-xl shadow-md transition-all active:scale-95 border border-amber-600/50 disabled:opacity-50 disabled:cursor-not-allowed">
+                    {syncStatus === "saving" ? "⏳ 儲存中..." : "💾 儲存修改"}
+                  </button>
                 </div>
               </form>
             </div>
