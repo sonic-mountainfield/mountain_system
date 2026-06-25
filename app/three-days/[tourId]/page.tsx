@@ -6,7 +6,6 @@ import { useParams } from "next/navigation";
 
 type ViewState = "menu" | "checkin" | "customerInfo" | "equipment" | "meals" | "rooms" | "roomSummary" | "groupDetail";
 
-// 🌟 定義離線排隊變更的結構
 interface OfflineQueueItem {
   name: string;
   field: string;
@@ -34,12 +33,10 @@ export default function TourDashboardPage() {
   const [selectedMealFilter, setSelectedMealFilter] = useState<string | null>(null);
   const [selectedDropoffFilter, setSelectedDropoffFilter] = useState<string | null>(null);
 
-  // 🌟 智慧核心：高山離線排隊佇列
   const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
 
-  // 計算各式加總看板的輔助函式
   const calculateStats = (members: any[], rooms: any[]) => {
     const mealsMap: { [key: string]: number } = {};
     const dropoffMap: { [key: string]: number } = {};
@@ -69,10 +66,8 @@ export default function TourDashboardPage() {
     setRoomTypeStats(roomsMap);
   };
 
-  // 抓取雲端資料與快取載入核心
   async function fetchData() {
     try {
-      // 🌟 【優化三：秒進畫面】第一步：嘗試從手機 localStorage 撈出上一次的歷史暫存備份
       const cachedMembers = localStorage.getItem(`takeno_members_${tourId}`);
       const cachedRooms = localStorage.getItem(`takeno_rooms_${tourId}`);
       
@@ -82,10 +77,9 @@ export default function TourDashboardPage() {
         setMemberData(parsedM);
         setRoomData(parsedR);
         calculateStats(parsedM, parsedR);
-        setLoading(false); // 🔍 機密核心：一旦讀到快取，立刻關閉加載轉圈圈，一毫秒進入工作台！
+        setLoading(false);
       }
 
-      // 第二步：在背景默默去跟雲端試算表要最新的即時數據
       const resMembers = await fetch(`${SHEETDB_URL}?sheet=3日出團總表`, { cache: "no-store" });
       const allMembers = await resMembers.json();
       const filteredMembers = Array.isArray(allMembers) ? allMembers.filter((m: any) => m.團號 === tourId) : [];
@@ -94,7 +88,6 @@ export default function TourDashboardPage() {
       const allRooms = await resRooms.json();
       const filteredRooms = Array.isArray(allRooms) ? allRooms.filter((r: any) => r.團號 === tourId) : [];
 
-      // 更新即時資料並覆寫本地備份
       setMemberData(filteredMembers);
       setRoomData(filteredRooms);
       calculateStats(filteredMembers, filteredRooms);
@@ -104,11 +97,7 @@ export default function TourDashboardPage() {
       setSyncStatus("idle");
 
     } catch (error) {
-      console.log("🌲 目前正處於無訊號高山環境，已自動切換為本地安全離線暫存視角。");
-      // 如果完全沒網、也沒快取，才提示警報
-      if (memberData.length === 0) {
-        setSyncStatus("error");
-      }
+      if (memberData.length === 0) setSyncStatus("error");
     } finally {
       setLoading(false);
     }
@@ -117,7 +106,6 @@ export default function TourDashboardPage() {
   useEffect(() => {
     if (tourId) {
       fetchData();
-      // 載入未同步的佇列
       const savedQueue = localStorage.getItem(`takeno_queue_${tourId}`);
       if (savedQueue) {
         const parsed = JSON.parse(savedQueue);
@@ -127,9 +115,7 @@ export default function TourDashboardPage() {
     }
   }, [tourId]);
 
-  // 🌟 【推薦二：高山智慧同步與排隊重試核心】
   const handleMemberFieldUpdate = async (index: number, field: string, value: string) => {
-    // 1. 不管有沒有網路，先瞬間更新手機畫面的狀態（體感流暢度 100 分）
     const updatedMembers = [...memberData];
     updatedMembers[index] = { ...updatedMembers[index], [field]: value };
     setMemberData(updatedMembers);
@@ -137,23 +123,17 @@ export default function TourDashboardPage() {
     localStorage.setItem(`takeno_members_${tourId}`, JSON.stringify(updatedMembers));
 
     const memberName = updatedMembers[index].姓名;
-
-    // 2. 嘗試發送回試算表
     setSyncStatus("saving");
+
     try {
       const response = await fetch(`${SHEETDB_URL}/姓名/${encodeURIComponent(memberName)}?sheet=3日出團總表`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: { [field]: value } })
       });
-      
-      if (response.ok) {
-        setSyncStatus("success");
-      } else {
-        throw new Error("斷网攔截");
-      }
+      if (response.ok) setSyncStatus("success");
+      else throw new Error("斷網");
     } catch (error) {
-      // 🌟 斷網核心防呆：一旦連線失敗，自動塞入離線排隊佇列
       const newQueueItem: OfflineQueueItem = { name: memberName, field, value, originalIdx: index };
       const updatedQueue = [...offlineQueue, newQueueItem];
       setOfflineQueue(updatedQueue);
@@ -162,11 +142,9 @@ export default function TourDashboardPage() {
     }
   };
 
-  // 🌟 一鍵重試批量補傳大腦 (主管走到有訊號的高處時一鍵批量補救)
   const handleRetrySyncAll = async () => {
     if (offlineQueue.length === 0) return;
     setSyncStatus("saving");
-    
     const currentQueue = [...offlineQueue];
     let successCount = 0;
 
@@ -178,28 +156,24 @@ export default function TourDashboardPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ data: { [item.field]: item.value } })
         });
-        if (response.ok) {
-          successCount++;
-        }
+        if (response.ok) successCount++;
       }
 
       if (successCount === currentQueue.length) {
         setOfflineQueue([]);
         localStorage.removeItem(`takeno_queue_${tourId}`);
         setSyncStatus("success");
-        // 重新同步全團
         fetchData();
       } else {
-        // 部分成功，把剩下的留下
         const remained = currentQueue.slice(successCount);
         setOfflineQueue(remained);
         localStorage.setItem(`takeno_queue_${tourId}`, JSON.stringify(remained));
         setSyncStatus("offline-pending");
-        alert(`⚠️ 因山區弱網，僅成功上傳 ${successCount} 筆，其餘已繼續保留在離線佇列中。`);
+        alert(`⚠️ 僅成功上傳 ${successCount} 筆，其餘保留在離線佇列中。`);
       }
     } catch (err) {
       setSyncStatus("error");
-      alert("❌ 機場/山區訊號依然微弱，請移動到空曠處後再次嘗試點擊一鍵同步。");
+      alert("❌ 訊號依然微弱，請稍後再次嘗試。");
     }
   };
 
@@ -229,14 +203,10 @@ export default function TourDashboardPage() {
       });
       if (response.ok) {
         setSyncStatus("success");
-        // 備份排房
         localStorage.setItem(`takeno_rooms_${tourId}`, JSON.stringify(roomData));
-      } else {
-        setSyncStatus("error");
-      }
+      } else setSyncStatus("error");
     } catch (error) { 
       setSyncStatus("error"); 
-      alert("🏨 排房雲端同步失敗，已儲存在手機暫存。");
     } finally { 
       setSavingIdx(null); 
     }
@@ -287,6 +257,23 @@ export default function TourDashboardPage() {
     );
   }
 
+  // 🌟 修復核心：把不小心漏掉的報到進度運算補回來了！
+  const displayedCheckins = selectedDropoffFilter
+    ? memberData.filter(m => (m.下車地點 ? String(m.下車地點).trim() : "未填寫") === selectedDropoffFilter)
+    : [...memberData];
+
+  displayedCheckins.sort((a, b) => {
+    const aChecked = a.報到狀態 === "TRUE";
+    const bChecked = b.報到狀態 === "TRUE";
+    if (aChecked === bChecked) return 0;
+    return aChecked ? 1 : -1;
+  });
+
+  const checkinTotal = displayedCheckins.length;
+  const checkinDone = displayedCheckins.filter(m => m.報到狀態 === "TRUE").length;
+  const checkinRemain = checkinTotal - checkinDone;
+  const checkinPercent = checkinTotal === 0 ? 0 : Math.round((checkinDone / checkinTotal) * 100);
+
   // === 裝備與餐點運算 ===
   const equipmentMembers = memberData.filter((m) => m.裝備明細 && m.裝備明細.trim() !== "" && m.裝備明細 !== "無");
   const equipTotal = equipmentMembers.length;
@@ -304,7 +291,6 @@ export default function TourDashboardPage() {
 
   return (
     <main className="min-h-screen bg-stone-100 flex flex-col items-center pb-12">
-      {/* 頂部導覽列 */}
       <div className="w-full bg-emerald-950 text-white py-4 px-6 sticky top-0 z-10 flex items-center justify-between shadow-md border-b border-emerald-900">
         <div>
           <span className="text-[10px] font-black bg-amber-500 text-emerald-950 px-2 py-0.5 rounded-full uppercase tracking-wider">TAKENO 團號 {tourId}</span>
@@ -314,7 +300,7 @@ export default function TourDashboardPage() {
             {view === "checkin" && "📋 報到點名與接駁確認"}
             {view === "customerInfo" && "👤 隊員聯絡與緊急資料專區"}
             {view === "equipment" && "🎒 裝備借出與問題回報"}
-            {view === "meals" && "🍱 餐點發發統計與名單"}
+            {view === "meals" && "🍱 餐點發放統計與名單"}
             {view === "rooms" && "🏨 飯店分房登記"}
             {view === "roomSummary" && "🗝️ 總房表快速對照"}
           </h1>
@@ -326,7 +312,6 @@ export default function TourDashboardPage() {
         )}
       </div>
 
-      {/* 🌟 戰術狀態提示條：融合推薦二與離線重試視覺機制 */}
       {view !== "menu" && (
         <div className="w-full max-w-md px-4 mt-3">
           {syncStatus === "offline-pending" ? (
@@ -353,17 +338,13 @@ export default function TourDashboardPage() {
 
       <div className="w-full max-w-md px-4 mt-4">
         
-        {/* ================= 主選單畫面 ================= */}
         {view === "menu" && (
           <div className="grid grid-cols-1 gap-4">
-            
-            {/* 離線警報狀態角標 */}
             {offlineQueue.length > 0 && (
               <button onClick={handleRetrySyncAll} className="bg-red-500 text-white p-3 rounded-2xl text-xs font-black text-center shadow-md animate-bounce border-2 border-red-400">
                 🚨 注意：您剛才在斷網時點了 {offlineQueue.length} 筆資料，點此一鍵批量同步回雲端！
               </button>
             )}
-
             <button onClick={() => setView("groupDetail")} className="flex items-center justify-between bg-gradient-to-r from-emerald-800 to-emerald-900 p-5 rounded-2xl shadow-md border border-emerald-700 text-white active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-lg font-black text-amber-400">🥾 登山分組看名單</h2>
@@ -371,7 +352,6 @@ export default function TourDashboardPage() {
               </div>
               <span className="text-xl text-amber-400 font-bold">➔</span>
             </button>
-
             <button onClick={() => setView("checkin")} className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-stone-200 active:scale-[0.98] transition-all hover:border-emerald-300">
               <div className="text-left">
                 <h2 className="text-lg font-black text-stone-800">📋 報到點名與接駁確認</h2>
@@ -379,7 +359,6 @@ export default function TourDashboardPage() {
               </div>
               <span className="text-xl text-emerald-700 font-bold">➔</span>
             </button>
-
             <button onClick={() => setView("customerInfo")} className="flex items-center justify-between bg-gradient-to-r from-stone-800 to-stone-900 text-white p-5 rounded-2xl shadow-md border border-stone-700 active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-lg font-black text-amber-400">👤 隊員聯絡與緊急資料專區</h2>
@@ -387,7 +366,6 @@ export default function TourDashboardPage() {
               </div>
               <span className="text-xl text-amber-400 font-bold">➔</span>
             </button>
-
             <button onClick={() => setView("equipment")} className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-stone-200 active:scale-[0.98] transition-all hover:border-emerald-300">
               <div className="text-left">
                 <h2 className="text-lg font-black text-stone-800">🎒 裝備確認與問題回報</h2>
@@ -395,7 +373,6 @@ export default function TourDashboardPage() {
               </div>
               <span className="text-xl text-emerald-700 font-bold">➔</span>
             </button>
-
             <button onClick={() => setView("meals")} className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-stone-200 active:scale-[0.98] transition-all hover:border-emerald-300">
               <div className="text-left">
                 <h2 className="text-lg font-black text-stone-800">🍱 登山口餐點發放</h2>
@@ -403,7 +380,6 @@ export default function TourDashboardPage() {
               </div>
               <span className="text-xl text-emerald-700 font-bold">➔</span>
             </button>
-
             <button onClick={() => setView("rooms")} className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-stone-200 active:scale-[0.98] transition-all hover:border-emerald-300">
               <div className="text-left">
                 <h2 className="text-lg font-black text-stone-800">🏨 飯店分房登記</h2>
@@ -411,7 +387,6 @@ export default function TourDashboardPage() {
               </div>
               <span className="text-xl text-emerald-700 font-bold">➔</span>
             </button>
-
             <button onClick={() => setView("roomSummary")} className="flex items-center justify-between bg-emerald-50 p-5 rounded-2xl shadow-sm border-2 border-emerald-600/40 active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-lg font-black text-emerald-900">🗝️ 飯店總房表快速對照</h2>
@@ -422,7 +397,6 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🥾 分組名單畫面 ================= */}
         {view === "groupDetail" && (
           <div className="space-y-6">
             {tourGroups.map((groupName) => {
@@ -463,7 +437,6 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 📋 報到點名與接駁確認 ================= */}
         {view === "checkin" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800">
@@ -582,7 +555,6 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 👤 隊員聯絡與緊急資料專區 ================= */}
         {view === "customerInfo" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-stone-800 to-stone-950 text-white p-4 rounded-2xl shadow-md border border-stone-700">
@@ -643,7 +615,6 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🎒 4. 裝備確認 ================= */}
         {view === "equipment" && (
           <div className="space-y-4">
             <div className="bg-white border border-stone-200 p-4 rounded-2xl shadow-sm mb-4">
@@ -714,7 +685,6 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🍱 5. 登山口餐點 ================= */}
         {view === "meals" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-emerald-900 to-stone-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800">
@@ -802,7 +772,6 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🏨 6. 飯店排房登記 ================= */}
         {view === "rooms" && (
           <div className="space-y-4">
             {roomData.map((room, idx) => {
@@ -832,7 +801,6 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🗝️ 7. 總房表快速對照 ================= */}
         {view === "roomSummary" && (
           <div className="space-y-3">
             <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800 mb-2">
