@@ -27,7 +27,6 @@ export default function FiveDaysDashboardPage() {
   const [tourGroups, setTourGroups] = useState<string[]>([]);
   const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
 
-  // 過濾器狀態
   const [selectedTransferFilter, setSelectedTransferFilter] = useState<string | null>(null);
   const [transferStats, setTransferStats] = useState<{ [key: string]: number }>({});
   
@@ -243,7 +242,7 @@ export default function FiveDaysDashboardPage() {
 
   if (loading && memberData.length === 0) {
     return (
-      <div className="min-h-screen bg-stone-900 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <p className="text-sky-400 font-bold animate-pulse text-lg">🌈 TAKENO 彩虹大腦載入中...</p>
       </div>
     );
@@ -255,9 +254,12 @@ export default function FiveDaysDashboardPage() {
   const checkinTotal = displayedCheckins.length;
   const checkinDone = displayedCheckins.filter(m => m.報到狀態 === "TRUE").length;
 
+  // 🌟 修復裝備遺漏的公式
   const equipmentMembers = memberData.filter((m) => m.裝備明細 && m.裝備明細.trim() !== "" && m.裝備明細 !== "無");
   const equipTotal = equipmentMembers.length;
   const equipGiven = equipmentMembers.filter(m => m.裝備借出 === "TRUE").length;
+  const equipRemain = equipTotal - equipGiven;
+  const equipPercent = equipTotal === 0 ? 0 : Math.round((equipGiven / equipTotal) * 100);
 
   const displayedMeals = selectedMealFilter ? memberData.filter(m => (m.五合目餐點 ? String(m.五合目餐點).trim() : "常規餐點") === selectedMealFilter) : [...memberData];
   displayedMeals.sort((a, b) => {
@@ -373,7 +375,7 @@ export default function FiveDaysDashboardPage() {
               <span className="text-xl font-bold">➔</span>
             </button>
 
-            {/* 🟡 黃色系：緊急聯絡 (字體深色) */}
+            {/* 🟡 黃色系：緊急聯絡 */}
             <button onClick={() => setView("customerInfo")} className="col-span-2 flex items-center justify-between bg-gradient-to-r from-amber-300 to-yellow-400 p-5 rounded-2xl shadow-md shadow-yellow-200 text-stone-900 active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-lg font-black text-stone-900">👤 隊員聯絡與緊急資料</h2>
@@ -382,26 +384,26 @@ export default function FiveDaysDashboardPage() {
               <span className="text-xl font-bold">➔</span>
             </button>
 
-            {/* 🟢 綠色系：裝備 (兩兩並排) */}
+            {/* 🟢 綠色系：裝備 */}
             <button onClick={() => setView("equipment")} className="flex flex-col items-start bg-gradient-to-br from-lime-400 to-green-500 p-4 rounded-2xl shadow-md shadow-green-200 text-stone-900 active:scale-[0.98] transition-all">
               <h2 className="text-base font-black text-stone-900 mb-1">🎒 裝備</h2>
               <p className="text-[10px] text-stone-700 font-bold">借出與損壞回報</p>
             </button>
 
-            {/* 🟢 藍綠色系：餐點 (兩兩並排) */}
+            {/* 🟢 藍綠色系：餐點 */}
             <button onClick={() => setView("meals")} className="flex flex-col items-start bg-gradient-to-br from-emerald-400 to-teal-500 p-4 rounded-2xl shadow-md shadow-teal-200 text-white active:scale-[0.98] transition-all">
               <h2 className="text-base font-black text-white mb-1">🍱 五合目餐點</h2>
               <p className="text-[10px] text-white/80 font-bold">分類發放點收</p>
             </button>
 
-            {/* 🔵 藍色系：單車 (兩兩並排) */}
+            {/* 🔵 藍色系：單車 */}
             <button onClick={() => setView("bikes")} className="flex flex-col items-start bg-gradient-to-br from-cyan-400 to-blue-500 p-4 rounded-2xl shadow-md shadow-blue-200 text-white active:scale-[0.98] transition-all relative overflow-hidden">
               <div className="absolute -right-2 -bottom-2 text-4xl opacity-20">🚴</div>
               <h2 className="text-base font-black text-white mb-1">🚴 單車租借</h2>
               <p className="text-[10px] text-white/80 font-bold">自動計算金額對帳</p>
             </button>
 
-            {/* 🟣 靛紫色系：排房 (兩兩並排) */}
+            {/* 🟣 靛紫色系：排房 */}
             <button onClick={() => setView("rooms")} className="flex flex-col items-start bg-gradient-to-br from-blue-500 to-indigo-500 p-4 rounded-2xl shadow-md shadow-indigo-200 text-white active:scale-[0.98] transition-all">
               <h2 className="text-base font-black text-white mb-1">🏨 飯店排房</h2>
               <p className="text-[10px] text-white/80 font-bold">三階段房號登記</p>
@@ -770,9 +772,10 @@ export default function FiveDaysDashboardPage() {
                   <span className="text-sm font-bold text-slate-500">{equipTotal} <span className="text-[10px]">人</span></span>
                 </div>
               </div>
-              <div className="w-full bg-slate-100 rounded-full h-2.5 border border-slate-200 overflow-hidden">
+              <div className="w-full bg-slate-100 rounded-full h-2.5 border border-slate-200 overflow-hidden mb-1.5">
                 <div className="bg-green-500 h-2.5 transition-all duration-500 ease-out" style={{ width: `${equipPercent}%` }}></div>
               </div>
+              <p className="text-[10px] text-stone-400 font-bold text-right">尚有 <span className="text-orange-500">{equipRemain}</span> 人未領取</p>
             </div>
 
              {equipmentMembers.map((member, idx) => {
