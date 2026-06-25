@@ -81,7 +81,7 @@ export default function ThreeDaysTourPage() {
       {/* 大海系深藍頂欄 */}
       <div className="w-full max-w-md mb-6 bg-gradient-to-r from-sky-950 to-slate-900 p-5 rounded-3xl shadow-xl shadow-sky-950/20 border border-sky-900 text-white flex justify-between items-center">
         <div>
-          <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase">Yuenor Expedition</p>
+          <p className="text-[10px] text-sky-400 font-black tracking-widest uppercase">TAKENO Expedition</p>
           <h1 className="text-xl font-black text-sky-50 mt-0.5 flex items-center gap-1.5">
             <span>👤</span> {guideName} <span className="text-xs font-bold text-sky-300">嚮導</span>
           </h1>
