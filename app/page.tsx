@@ -49,7 +49,6 @@ export default function HomePage() {
       if (matchedUser) {
         localStorage.setItem("yuenor_login", "true");
         localStorage.setItem("yuenor_user_name", String(matchedUser.導遊姓名 || matchedUser.帳號).trim());
-        // 🌟 新增：將雲端的「權限」欄位同步記憶到本地 (統一轉小寫防呆)
         const userRole = String(matchedUser.權限 || "guide").trim().toLowerCase();
         localStorage.setItem("yuenor_role", userRole);
 
@@ -69,7 +68,7 @@ export default function HomePage() {
   const handleLogout = () => {
     localStorage.removeItem("yuenor_login");
     localStorage.removeItem("yuenor_user_name");
-    localStorage.removeItem("yuenor_role"); // 🌟 清除權限
+    localStorage.removeItem("yuenor_role");
     setIsLoggedIn(false);
     setUsername("");
     setPassword("");
@@ -83,6 +82,7 @@ export default function HomePage() {
     );
   }
 
+  // ================= 🌲 森林系登入畫面 =================
   if (!isLoggedIn) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-emerald-950 via-emerald-900 to-stone-900 flex flex-col items-center justify-center px-6 relative overflow-hidden">
@@ -93,7 +93,8 @@ export default function HomePage() {
           <div>
             <span className="text-5xl inline-block drop-shadow-md animate-bounce">🏔️</span>
             <h1 className="text-2xl font-black text-emerald-100 mt-3 tracking-wide drop-shadow">岳野登山公司</h1>
-            <p className="text-xs font-bold text-emerald-400/80 tracking-widest mt-1">YUENOR MOUNTAIN SYSTEM</p>
+            {/* 🌟 品牌正名：改為 TAKENO MOUNTAIN SYSTEM */}
+            <p className="text-xs font-bold text-emerald-400/80 tracking-widest mt-1">TAKENO MOUNTAIN SYSTEM</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4 text-left">
@@ -136,11 +137,13 @@ export default function HomePage() {
     );
   }
 
+  // ================= 🌲 森林系主功能選單 =================
   return (
     <main className="min-h-screen bg-gradient-to-b from-stone-100 to-emerald-50/40 flex flex-col items-center justify-center p-6 relative">
       <div className="w-full max-w-sm bg-white p-6 rounded-3xl shadow-xl border border-emerald-100 space-y-5 text-center">
         <div>
           <span className="text-4xl inline-block drop-shadow">🥾</span>
+          {/* 🌟 品牌正名：岳野嚮導平台 (TAKENO) */}
           <h1 className="text-2xl font-black text-stone-800 mt-2">岳野嚮導平台</h1>
           <p className="text-xs font-bold text-emerald-700 bg-emerald-100/70 px-4 py-1.5 rounded-full inline-block mt-2 border border-emerald-200">
             🌲 歡迎回來，雲端驗證成功
