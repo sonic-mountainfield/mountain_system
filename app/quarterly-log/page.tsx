@@ -331,7 +331,6 @@ export default function QuarterlyLogPage() {
 
     logs.forEach((log) => {
       if (log.日期 && timelineMap[log.日期]) {
-        // 🌟 嚮導個人班表模式：只抽取關聯人員中包含自己姓名的事件日誌
         if (mode === "personal") {
           if (!log.關聯人員 || !log.關聯人員.includes(currentUserName)) return;
         }
@@ -417,7 +416,7 @@ export default function QuarterlyLogPage() {
         </Link>
       </div>
 
-      {/* 智慧分頁頁籤 (支援權限隔離動態隱藏) */}
+      {/* 智慧分頁頁籤 */}
       <div className="w-full max-w-md px-4 mt-4 grid grid-cols-5 gap-1 no-print">
         <button onClick={() => setSubView("my-schedule")} className={`py-3 text-[10px] font-black rounded-xl border transition-all text-center ${subView === "my-schedule" ? "bg-stone-900 text-amber-400 border-stone-950 shadow-sm" : "bg-white text-stone-600 border-stone-200"}`}>
           📅 我的班表
@@ -432,7 +431,6 @@ export default function QuarterlyLogPage() {
           🖨️ 報表列印
         </button>
         
-        {/* 🌟 優化一：權限鎖定！只有權限為 admin 的使用者才看得到後台按鈕 */}
         {userRole === "admin" && (
           <button onClick={() => setSubView("backoffice")} className={`py-3 text-[10px] font-black rounded-xl border transition-all text-center ${subView === "backoffice" ? "bg-stone-900 text-amber-400 border-stone-950 shadow-sm" : "bg-white text-stone-600 border-stone-200"}`}>
             ⚙️ 後台建團
@@ -449,7 +447,7 @@ export default function QuarterlyLogPage() {
 
       <div className="w-full max-w-md px-4 mt-4 no-print">
         
-        {/* ================= 🌟 優化三：嚮導個人專屬班表視角 ================= */}
+        {/* ================= 🌟 嚮導個人專屬班表視角 ================= */}
         {subView === "my-schedule" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-r from-emerald-800 to-emerald-950 p-4 rounded-2xl shadow-sm text-white text-left">
@@ -461,7 +459,7 @@ export default function QuarterlyLogPage() {
 
             <div className="space-y-3.5">
               {personalTimeline.map((day) => {
-                if (day.events.length === 0) return null; // 只顯示跟自己有關係的日子
+                if (day.events.length === 0) return null;
                 return (
                   <div key={day.date} className="bg-white border border-stone-200 rounded-2xl shadow-xs overflow-hidden">
                     <div className="bg-emerald-50 border-b border-emerald-100 px-4 py-2.5 flex justify-between items-center">
@@ -626,7 +624,7 @@ export default function QuarterlyLogPage() {
           </form>
         )}
 
-        {/* ================= 🌟 優化二：🖨️ 智能出團報表列印中心 (螢幕控制台視角) ================= */}
+        {/* ================= 🌟 🖨️ 智能出團報表列印中心 (螢幕控制台視角) ================= */}
         {subView === "print" && (
           <div className="bg-white border border-stone-200 p-5 rounded-2xl shadow-sm space-y-4">
             <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Report Print Center</p>
@@ -802,7 +800,8 @@ export default function QuarterlyLogPage() {
                       <label className="text-xs font-black text-stone-700 block mb-1">🏔️ 關聯團號</label>
                       <select value={editFormTourId} onChange={(e) => setEditFormTourId(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg p-2 bg-stone-50">
                         <option value="">-- 無 --</option>
-                        {tours.map((t) => <option key={t.團號} value={t.團號}>{t.團號</option>)}
+                        {/* 🌟 修復的防呆大括號就在這裡！ */}
+                        {tours.map((t) => <option key={t.團號} value={t.團號}>{t.團號}</option>)}
                       </select>
                     </div>
                     <div>
