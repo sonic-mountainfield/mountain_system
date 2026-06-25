@@ -77,12 +77,12 @@ export default function HomePage() {
   if (!isClient) {
     return (
       <div className="min-h-screen bg-stone-900 flex items-center justify-center">
-        <p className="text-emerald-400 font-bold animate-pulse">🌲 岳野山林系統載入中...</p>
+        <p className="text-emerald-400 font-bold animate-pulse">🌲 TAKENO 系統載入中...</p>
       </div>
     );
   }
 
-  // ================= 🌲 森林系登入畫面 =================
+  // ================= 登入畫面 =================
   if (!isLoggedIn) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-emerald-950 via-emerald-900 to-stone-900 flex flex-col items-center justify-center px-6 relative overflow-hidden">
@@ -93,7 +93,6 @@ export default function HomePage() {
           <div>
             <span className="text-5xl inline-block drop-shadow-md animate-bounce">🏔️</span>
             <h1 className="text-2xl font-black text-emerald-100 mt-3 tracking-wide drop-shadow">岳野登山公司</h1>
-            {/* 🌟 品牌正名：改為 TAKENO MOUNTAIN SYSTEM */}
             <p className="text-xs font-bold text-emerald-400/80 tracking-widest mt-1">TAKENO MOUNTAIN SYSTEM</p>
           </div>
 
@@ -137,13 +136,12 @@ export default function HomePage() {
     );
   }
 
-  // ================= 🌲 森林系主功能選單 =================
+  // ================= 主功能選單 =================
   return (
     <main className="min-h-screen bg-gradient-to-b from-stone-100 to-emerald-50/40 flex flex-col items-center justify-center p-6 relative">
       <div className="w-full max-w-sm bg-white p-6 rounded-3xl shadow-xl border border-emerald-100 space-y-5 text-center">
         <div>
           <span className="text-4xl inline-block drop-shadow">🥾</span>
-          {/* 🌟 品牌正名：岳野嚮導平台 (TAKENO) */}
           <h1 className="text-2xl font-black text-stone-800 mt-2">岳野嚮導平台</h1>
           <p className="text-xs font-bold text-emerald-700 bg-emerald-100/70 px-4 py-1.5 rounded-full inline-block mt-2 border border-emerald-200">
             🌲 歡迎回來，雲端驗證成功
@@ -158,6 +156,7 @@ export default function HomePage() {
             🗓️ 前往「季度工作日誌總部」
           </Link>
 
+          {/* 🌲 森林系：三日團 */}
           <Link
             href="/three-days"
             className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-md active:scale-[0.98] transition-all text-center block text-base tracking-wide"
@@ -165,10 +164,13 @@ export default function HomePage() {
             🏔️ 前往「富士山三日團」
           </Link>
           
-          <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl py-3 px-4 text-center relative overflow-hidden opacity-60">
-            <span className="text-stone-700 font-extrabold text-sm block">🇯🇵 富士山五日團</span>
-            <span className="text-[9px] bg-stone-200 text-stone-500 px-2 py-0.5 rounded-full font-bold inline-block mt-0.5">🔒 系統規劃中</span>
-          </div>
+          {/* 🌊 大海系：五日團 (正式解鎖！) */}
+          <Link
+            href="/five-days"
+            className="w-full bg-sky-700 hover:bg-sky-600 text-white font-black py-4 rounded-2xl shadow-md active:scale-[0.98] transition-all text-center block text-base tracking-wide"
+          >
+            🇯🇵 前往「富士山五日團」
+          </Link>
 
           <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl py-3 px-4 text-center relative overflow-hidden opacity-60">
             <span className="text-stone-700 font-extrabold text-sm block">🧗 日本登山系列團</span>
