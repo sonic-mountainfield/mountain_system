@@ -48,7 +48,11 @@ export default function HomePage() {
 
       if (matchedUser) {
         localStorage.setItem("yuenor_login", "true");
-        localStorage.setItem("yuenor_user_name", String(matchedUser.導遊姓名 || matchedUser.帳號));
+        localStorage.setItem("yuenor_user_name", String(matchedUser.導遊姓名 || matchedUser.帳號).trim());
+        // 🌟 新增：將雲端的「權限」欄位同步記憶到本地 (統一轉小寫防呆)
+        const userRole = String(matchedUser.權限 || "guide").trim().toLowerCase();
+        localStorage.setItem("yuenor_role", userRole);
+
         setIsLoggedIn(true);
         setError("");
       } else {
@@ -65,6 +69,7 @@ export default function HomePage() {
   const handleLogout = () => {
     localStorage.removeItem("yuenor_login");
     localStorage.removeItem("yuenor_user_name");
+    localStorage.removeItem("yuenor_role"); // 🌟 清除權限
     setIsLoggedIn(false);
     setUsername("");
     setPassword("");
@@ -78,7 +83,6 @@ export default function HomePage() {
     );
   }
 
-  // ================= 🌲 森林系登入畫面 (狀況一) =================
   if (!isLoggedIn) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-emerald-950 via-emerald-900 to-stone-900 flex flex-col items-center justify-center px-6 relative overflow-hidden">
@@ -132,7 +136,6 @@ export default function HomePage() {
     );
   }
 
-  // ================= 🌲 森林系主功能選單 (狀況二) =================
   return (
     <main className="min-h-screen bg-gradient-to-b from-stone-100 to-emerald-50/40 flex flex-col items-center justify-center p-6 relative">
       <div className="w-full max-w-sm bg-white p-6 rounded-3xl shadow-xl border border-emerald-100 space-y-5 text-center">
@@ -145,7 +148,6 @@ export default function HomePage() {
         </div>
 
         <div className="flex flex-col gap-3 pt-1">
-          {/* 🌟 新增：季度工作日誌核心調度中心分頁入口 */}
           <Link
             href="/quarterly-log"
             className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-stone-950 font-black py-4 rounded-2xl shadow-md active:scale-[0.98] transition-all text-center block text-base tracking-wide border border-amber-600/30"
@@ -153,7 +155,6 @@ export default function HomePage() {
             🗓️ 前往「季度工作日誌總部」
           </Link>
 
-          {/* 1. 富士山三日團 */}
           <Link
             href="/three-days"
             className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-2xl shadow-md active:scale-[0.98] transition-all text-center block text-base tracking-wide"
@@ -161,13 +162,11 @@ export default function HomePage() {
             🏔️ 前往「富士山三日團」
           </Link>
           
-          {/* 2. 富士山五日團 */}
           <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl py-3 px-4 text-center relative overflow-hidden opacity-60">
             <span className="text-stone-700 font-extrabold text-sm block">🇯🇵 富士山五日團</span>
             <span className="text-[9px] bg-stone-200 text-stone-500 px-2 py-0.5 rounded-full font-bold inline-block mt-0.5">🔒 系統規劃中</span>
           </div>
 
-          {/* 3. 日本登山系列團 */}
           <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl py-3 px-4 text-center relative overflow-hidden opacity-60">
             <span className="text-stone-700 font-extrabold text-sm block">🧗 日本登山系列團</span>
             <span className="text-[9px] bg-stone-200 text-stone-500 px-2 py-0.5 rounded-full font-bold inline-block mt-0.5">🔒 系統規劃中</span>
