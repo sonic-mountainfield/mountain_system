@@ -164,7 +164,7 @@ export default function HomePage() {
             🏔️ 前往「富士山三日團」
           </Link>
           
-          {/* 🌊 大海系：五日團 (正式解鎖！) */}
+          {/* 🌊 大海系：五日團 */}
           <Link
             href="/five-days"
             className="w-full bg-sky-700 hover:bg-sky-600 text-white font-black py-4 rounded-2xl shadow-md active:scale-[0.98] transition-all text-center block text-base tracking-wide"
@@ -172,10 +172,13 @@ export default function HomePage() {
             🇯🇵 前往「富士山五日團」
           </Link>
 
-          <div className="w-full bg-stone-50 border border-stone-200 rounded-2xl py-3 px-4 text-center relative overflow-hidden opacity-60">
-            <span className="text-stone-700 font-extrabold text-sm block">🧗 日本登山系列團</span>
-            <span className="text-[9px] bg-stone-200 text-stone-500 px-2 py-0.5 rounded-full font-bold inline-block mt-0.5">🔒 系統規劃中</span>
-          </div>
+          {/* 🌸 櫻花雪山系：日本系列團 (終極解鎖！) */}
+          <Link
+            href="/japan-series"
+            className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl shadow-md active:scale-[0.98] transition-all text-center block text-base tracking-wide border border-indigo-500/50"
+          >
+            🧗 前往「日本登山系列團」
+          </Link>
         </div>
 
         <div className="border-t border-stone-100 pt-3">
