@@ -27,15 +27,19 @@ export default function FiveDaysDashboardPage() {
   const [tourGroups, setTourGroups] = useState<string[]>([]);
   const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
 
+  // ✈️ 報到與接送過濾
   const [selectedTransferFilter, setSelectedTransferFilter] = useState<string | null>(null);
   const [transferStats, setTransferStats] = useState<{ [key: string]: number }>({});
   
+  // 🍱 餐點與單車
   const [mealStats, setMealStats] = useState<{ [key: string]: number }>({});
   const [bikeStats, setBikeStats] = useState<{ [key: string]: number }>({});
   const [selectedMealFilter, setSelectedMealFilter] = useState<string | null>(null);
   const [selectedBikeFilter, setSelectedBikeFilter] = useState<string | null>(null);
 
+  // 🏨 飯店切換與房型過濾狀態
   const [selectedHotelStage, setSelectedHotelStage] = useState<string>("東京首日");
+  const [selectedRoomTypeFilter, setSelectedRoomTypeFilter] = useState<string | null>(null);
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
 
@@ -232,6 +236,35 @@ export default function FiveDaysDashboardPage() {
     }
   };
 
+  // ⚡ 飯店一鍵批次同步加速 (Promise.all 併發引擎)
+  const handleSaveAllAndSummary = async () => {
+    setLoading(true);
+    setSyncStatus("saving");
+    try {
+      const promises = roomData.map(room => {
+        const primaryInfo = getPrimaryGuestInfo(room);
+        if (!primaryInfo) return Promise.resolve();
+        return fetch(`${SHEETDB_URL}/${encodeURIComponent(primaryInfo.key)}/${encodeURIComponent(primaryInfo.value)}?sheet=5日排房表`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: { 實際房號: room.實際房號 || "" } })
+        });
+      });
+      
+      await Promise.all(promises);
+      setSyncStatus("success");
+      localStorage.setItem(`takeno_rooms_5d_${tourId}`, JSON.stringify(roomData));
+      await fetchData();
+      setView("roomSummary");
+    } catch (error) { 
+      setSyncStatus("error"); 
+      setView("roomSummary"); 
+    } finally { 
+      setLoading(false); 
+    }
+  };
+
+  // 地毯式動態房客提取 (完美包容 5人房大通鋪)
   const getGuestsList = (room: any) => {
     const guests: string[] = [];
     const guestKeys = Object.keys(room).filter(k => k.includes("房客"));
@@ -261,15 +294,20 @@ export default function FiveDaysDashboardPage() {
     window.print();
   };
 
+  const handleHotelStageChange = (stage: string) => {
+    setSelectedHotelStage(stage);
+    setSelectedRoomTypeFilter(null); // 切換天數時重設房型過濾器
+  };
+
   if (loading && memberData.length === 0) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+      <div className="min-h-screen bg-stone-900 flex items-center justify-center">
         <p className="text-sky-400 font-bold animate-pulse text-lg">🌈 TAKENO 彩虹大腦載入中...</p>
       </div>
     );
   }
 
-  // === 各模組運算 ===
+  // === 進度與過濾運算 ===
   const displayedCheckins = selectedTransferFilter ? memberData.filter(m => (m.接送模式 ? String(m.接送模式).trim() : "未定") === selectedTransferFilter) : [...memberData];
   displayedCheckins.sort((a, b) => (a.報到狀態 === "TRUE" ? 1 : -1));
   const checkinTotal = displayedCheckins.length;
@@ -282,24 +320,14 @@ export default function FiveDaysDashboardPage() {
   const equipPercent = equipTotal === 0 ? 0 : Math.round((equipGiven / equipTotal) * 100);
 
   const displayedMeals = selectedMealFilter ? memberData.filter(m => (m.五合目餐點 ? String(m.五合目餐點).trim() : "常規餐點") === selectedMealFilter) : [...memberData];
-  displayedMeals.sort((a, b) => {
-    const aClaimed = a.餐點領取 === "TRUE";
-    const bClaimed = b.餐點領取 === "TRUE";
-    if (aClaimed === bClaimed) return 0;
-    return aClaimed ? 1 : -1;
-  });
+  displayedMeals.sort((a, b) => (a.餐點領取 === "TRUE" ? 1 : -1));
   const mealTotal = displayedMeals.length;
   const mealGiven = displayedMeals.filter(m => m.餐點領取 === "TRUE").length;
   const mealRemain = mealTotal - mealGiven;
   const mealPercent = mealTotal === 0 ? 0 : Math.round((mealGiven / mealTotal) * 100);
 
   const displayedBikes = selectedBikeFilter ? memberData.filter(m => (m.單車需求 ? String(m.單車需求).trim() : "未填寫") === selectedBikeFilter) : [...memberData];
-  displayedBikes.sort((a, b) => {
-    const aClaimed = a.單車點收 === "TRUE";
-    const bClaimed = b.單車點收 === "TRUE";
-    if (aClaimed === bClaimed) return 0;
-    return aClaimed ? 1 : -1;
-  });
+  displayedBikes.sort((a, b) => (a.單車點收 === "TRUE" ? 1 : -1));
 
   let totalBikeExpectedRevenue = 0;
   let totalBikeCollectedRevenue = 0;
@@ -307,18 +335,29 @@ export default function FiveDaysDashboardPage() {
     const typeStr = m.單車需求 ? String(m.單車需求).trim() : "";
     const price = getBikePrice(typeStr);
     totalBikeExpectedRevenue += price;
-    if (m.單車點收 === "TRUE") {
-      totalBikeCollectedRevenue += price;
-    }
+    if (m.單車點收 === "TRUE") totalBikeCollectedRevenue += price;
   });
 
+  // 🏨 房表過濾：取得指定階段飯店的資料
   const currentStageRooms = roomData.filter((r) => r.住宿階段 === selectedHotelStage);
   const currentStageHotelName = currentStageRooms.length > 0 && currentStageRooms[0].飯店名稱 ? currentStageRooms[0].飯店名稱 : "未定飯店";
   const currentStageCheckInDate = currentStageRooms.length > 0 && currentStageRooms[0].入住日期 ? currentStageRooms[0].入住日期 : "未定日期";
 
+  // 房型動態計算
+  const currentStageRoomStats: { [key: string]: number } = {};
+  currentStageRooms.forEach(r => {
+    const rType = r.房型 ? String(r.房型).trim() : "未定房型";
+    currentStageRoomStats[rType] = (currentStageRoomStats[rType] || 0) + 1;
+  });
+
+  let displayedRooms = [...currentStageRooms];
+  if (selectedRoomTypeFilter) {
+    displayedRooms = displayedRooms.filter(r => (r.房型 ? String(r.房型).trim() : "未定房型") === selectedRoomTypeFilter);
+  }
+
   return (
     <>
-      {/* 🖨️ 專屬的列印 CSS 樣式：隱藏介面，渲染純淨 A4 表格 */}
+      {/* 🖨️ 列印樣式大絕招 */}
       <style>{`
         @media print {
           body { background: white !important; color: black !important; padding: 0 !important; margin: 0 !important; }
@@ -333,7 +372,7 @@ export default function FiveDaysDashboardPage() {
         .print-only { display: none; }
       `}</style>
 
-      {/* 🚫 no-print 區塊：把 APP 所有的操作介面包起來，列印時自動隱藏 */}
+      {/* 🚫 手機操作版面 */}
       <div className="no-print">
         <main className="min-h-screen bg-slate-50 flex flex-col items-center pb-12">
           <div className="w-full bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-600 text-white py-4 px-6 sticky top-0 z-20 flex items-center justify-between shadow-lg">
@@ -358,7 +397,7 @@ export default function FiveDaysDashboardPage() {
                 返回總表
               </Link>
             ) : (
-              <button onClick={() => { setView("menu"); setSelectedTransferFilter(null); setSelectedMealFilter(null); setSelectedBikeFilter(null); }} className="text-slate-900 text-xs font-black bg-white/90 hover:bg-white px-4 py-2 rounded-xl active:scale-95 transition-all shadow-md backdrop-blur-sm">
+              <button onClick={() => { setView("menu"); setSelectedTransferFilter(null); setSelectedMealFilter(null); setSelectedBikeFilter(null); setSelectedRoomTypeFilter(null); }} className="text-slate-900 text-xs font-black bg-white/90 hover:bg-white px-4 py-2 rounded-xl active:scale-95 transition-all shadow-md backdrop-blur-sm">
                 ↩ 回選單
               </button>
             )}
@@ -396,7 +435,6 @@ export default function FiveDaysDashboardPage() {
                   </button>
                 )}
 
-                {/* 🌟 新增：列印全團總表按鈕 */}
                 <button onClick={handlePrintAction} className="col-span-2 bg-slate-800 text-white p-4 rounded-2xl text-sm font-black text-center shadow-md active:scale-95 transition-all border border-slate-700 flex justify-center items-center gap-2">
                   🖨️ 列印【全團綜合大表】(建議橫向列印)
                 </button>
@@ -443,19 +481,20 @@ export default function FiveDaysDashboardPage() {
 
                 <button onClick={() => setView("rooms")} className="flex flex-col items-start bg-gradient-to-br from-blue-500 to-indigo-500 p-4 rounded-2xl shadow-md shadow-indigo-200 text-white active:scale-[0.98] transition-all">
                   <h2 className="text-base font-black text-white mb-1">🏨 飯店排房</h2>
-                  <p className="text-[10px] text-white/80 font-bold">三階段房號登記</p>
+                  <p className="text-[10px] text-white/80 font-bold">三階段房型統計與排房</p>
                 </button>
 
                 <button onClick={() => setView("roomSummary")} className="col-span-2 flex items-center justify-between bg-gradient-to-r from-violet-500 to-fuchsia-500 p-5 rounded-2xl shadow-md shadow-fuchsia-200 text-white active:scale-[0.98] transition-all">
                   <div className="text-left">
                     <h2 className="text-lg font-black text-white">🗝️ 飯店總房表快速對照</h2>
+                    <p className="text-xs text-white/80 mt-1">櫃檯領鑰匙、過濾與智慧列印房表</p>
                   </div>
                   <span className="text-xl font-bold">➔</span>
                 </button>
               </div>
             )}
 
-            {/* 其他操作介面邏輯 ... 為了不讓程式碼過度龐大且保持重點，中間的 view 渲染邏輯完全保留與上一個版本相同 */}
+            {/* ================= ✈️ 機場接送與報到 ================= */}
             {view === "checkin" && (
               <div className="space-y-4">
                 <div className="bg-gradient-to-br from-orange-500 to-orange-600 text-white p-4 rounded-2xl shadow-md shadow-orange-200">
@@ -480,6 +519,7 @@ export default function FiveDaysDashboardPage() {
                     })}
                   </div>
                 </div>
+
                 {displayedCheckins.map((member, _idx) => {
                   const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
                   const isCheckedIn = member.報到狀態 === "TRUE";
@@ -520,28 +560,51 @@ export default function FiveDaysDashboardPage() {
               </div>
             )}
 
+            {/* ================= 🏨 三階段飯店排房 (加入房型過濾與 Promise.all 加速) ================= */}
             {view === "rooms" && (
               <div className="space-y-4">
                 <div className="bg-indigo-600 p-2 rounded-2xl flex gap-1 shadow-md shadow-indigo-200 sticky top-[72px] z-10">
                   {["東京首日", "溫泉旅館", "東京尾日"].map(stage => (
-                    <button 
-                      key={stage} 
-                      onClick={() => setSelectedHotelStage(stage)}
-                      className={`flex-1 py-2 text-[11px] font-black rounded-xl transition-all ${selectedHotelStage === stage ? "bg-white text-indigo-700 shadow-sm" : "bg-transparent text-indigo-200 hover:bg-indigo-500"}`}
-                    >
+                    <button key={stage} onClick={() => handleHotelStageChange(stage)} className={`flex-1 py-2 text-[11px] font-black rounded-xl transition-all ${selectedHotelStage === stage ? "bg-white text-indigo-700 shadow-sm" : "bg-transparent text-indigo-200 hover:bg-indigo-500"}`}>
                       {stage}
                     </button>
                   ))}
                 </div>
-                {currentStageRooms.length === 0 ? (
+
+                {/* 房型過濾面板 */}
+                <div className="bg-gradient-to-br from-indigo-500 to-violet-600 text-white p-4 rounded-2xl shadow-md shadow-indigo-200">
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <p className="text-[9px] text-indigo-200 font-black tracking-widest uppercase">Room Type Filter</p>
+                      <h3 className="text-sm font-black text-white mt-0.5">🏨 點擊過濾房型 ({selectedHotelStage})</h3>
+                    </div>
+                    {selectedRoomTypeFilter && (
+                      <button onClick={() => setSelectedRoomTypeFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">✖ 取消</button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(currentStageRoomStats).map(([rType, count]) => {
+                      const isSelected = selectedRoomTypeFilter === rType;
+                      return (
+                        <button key={rType} onClick={() => setSelectedRoomTypeFilter(isSelected ? null : rType)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all ${isSelected ? "bg-white text-indigo-700 shadow-md scale-[1.02]" : "bg-black/10 border border-white/20 hover:bg-black/20"}`}>
+                          <span className={`text-[10px] font-bold truncate mr-1 ${isSelected ? "text-indigo-700" : "text-indigo-100"}`}>{rType}</span>
+                          <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-indigo-600" : "text-white"}`}>{count} <span className="text-[10px] font-normal">間</span></span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {displayedRooms.length === 0 ? (
                   <div className="text-center py-10 bg-white rounded-2xl border border-slate-200">
-                    <p className="text-slate-400 text-sm font-bold">目前【{selectedHotelStage}】無排房資料</p>
+                    <p className="text-slate-400 text-sm font-bold">目前無符合條件的房型資料</p>
                   </div>
                 ) : (
-                  currentStageRooms.map((room) => {
+                  displayedRooms.map((room) => {
                     const originalIdx = roomData.findIndex(r => r === room);
                     const guests = getGuestsList(room);
                     const dietWarnings = selectedHotelStage === "溫泉旅館" ? getRoomDietaryRestrictions(guests) : [];
+
                     return (
                       <div key={originalIdx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm">
                         <div className="flex justify-between items-center border-b border-slate-100 pb-3 mb-3">
@@ -572,59 +635,55 @@ export default function FiveDaysDashboardPage() {
                     );
                   })
                 )}
+                <button onClick={handleSaveAllAndSummary} className="w-full mt-6 bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-center text-sm tracking-wide">⚡ 智慧併發一鍵儲存並看總表 ➔</button>
               </div>
             )}
 
-            {/* ================= 🌸 飯店總房表快速對照 & 列印功能 ================= */}
+            {/* ================= 🗝️ 飯店總房表快速對照 (與列印連動) ================= */}
             {view === "roomSummary" && (
               <div className="space-y-4">
                 <div className="bg-fuchsia-600 p-2 rounded-2xl flex gap-1 shadow-md shadow-fuchsia-200 sticky top-[72px] z-10">
                   {["東京首日", "溫泉旅館", "東京尾日"].map(stage => (
-                    <button 
-                      key={stage} 
-                      onClick={() => setSelectedHotelStage(stage)}
-                      className={`flex-1 py-2 text-[11px] font-black rounded-xl transition-all ${selectedHotelStage === stage ? "bg-white text-fuchsia-700 shadow-sm" : "bg-transparent text-fuchsia-200 hover:bg-fuchsia-500"}`}
-                    >
+                    <button key={stage} onClick={() => handleHotelStageChange(stage)} className={`flex-1 py-2 text-[11px] font-black rounded-xl transition-all ${selectedHotelStage === stage ? "bg-white text-fuchsia-700 shadow-sm" : "bg-transparent text-fuchsia-200 hover:bg-fuchsia-500"}`}>
                       {stage}
                     </button>
                   ))}
                 </div>
 
                 <div className="bg-gradient-to-br from-fuchsia-500 to-purple-600 text-white p-4 rounded-2xl shadow-md shadow-fuchsia-200 mb-2">
-                  <p className="text-[9px] text-fuchsia-200 font-black tracking-widest uppercase">Room-type Automation Stats</p>
-                  <h3 className="text-sm font-black text-white mt-0.5 mb-3">🏨 【{selectedHotelStage}】房型總量清點</h3>
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <p className="text-[9px] text-fuchsia-200 font-black tracking-widest uppercase">Room-type Automation Stats</p>
+                      <h3 className="text-sm font-black text-white mt-0.5">🏨 點擊過濾房型 ({selectedHotelStage})</h3>
+                    </div>
+                    {selectedRoomTypeFilter && (
+                      <button onClick={() => setSelectedRoomTypeFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">✖ 取消</button>
+                    )}
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {(() => {
-                      const currentStats: { [key: string]: number } = {};
-                      currentStageRooms.forEach(r => {
-                        const rType = r.房型 ? String(r.房型).trim() : "未定房型";
-                        currentStats[rType] = (currentStats[rType] || 0) + 1;
-                      });
-                      return Object.entries(currentStats).map(([rType, count]) => (
-                        <div key={rType} className="bg-black/10 border border-white/20 p-2.5 rounded-xl flex justify-between items-center">
-                          <span className="text-[11px] font-bold text-fuchsia-100 truncate mr-1">{rType}</span>
-                          <span className="text-base font-black text-white whitespace-nowrap">{count} <span className="text-[10px] text-fuchsia-200 font-bold">間</span></span>
-                        </div>
-                      ));
-                    })()}
+                    {Object.entries(currentStageRoomStats).map(([rType, count]) => {
+                      const isSelected = selectedRoomTypeFilter === rType;
+                      return (
+                        <button key={rType} onClick={() => setSelectedRoomTypeFilter(isSelected ? null : rType)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all ${isSelected ? "bg-white text-fuchsia-700 shadow-md scale-[1.02]" : "bg-black/10 border border-white/20 hover:bg-black/20"}`}>
+                          <span className={`text-[11px] font-bold truncate mr-1 ${isSelected ? "text-fuchsia-700" : "text-fuchsia-100"}`}>{rType}</span>
+                          <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-fuchsia-600" : "text-white"}`}>{count} <span className="text-[10px] font-bold">間</span></span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* 🌟 列印紙本房表按鈕 */}
-                <button 
-                  onClick={handlePrintAction} 
-                  className="w-full bg-slate-800 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2 hover:bg-slate-900"
-                >
-                  🖨️ 列印【{selectedHotelStage}】紙本房表 (供手寫用)
+                <button onClick={handlePrintAction} className="w-full bg-slate-800 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2 hover:bg-slate-900">
+                  🖨️ 列印 {selectedRoomTypeFilter ? `【${selectedRoomTypeFilter}】` : `【${selectedHotelStage}】`} 紙本房表 (供手寫)
                 </button>
 
-                {currentStageRooms.length === 0 ? (
+                {displayedRooms.length === 0 ? (
                   <div className="text-center py-10 bg-white rounded-2xl border border-slate-200">
-                    <p className="text-slate-400 text-sm font-bold">目前【{selectedHotelStage}】無排房資料</p>
+                    <p className="text-slate-400 text-sm font-bold">目前無符合條件的房型資料</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {currentStageRooms.map((room, idx) => {
+                    {displayedRooms.map((room, idx) => {
                       const guests = getGuestsList(room);
                       return (
                         <div key={idx} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-fuchsia-300 transition-colors">
@@ -644,7 +703,7 @@ export default function FiveDaysDashboardPage() {
               </div>
             )}
 
-            {/* 其餘介面保持不動... */}
+            {/* ================= 🚴 單車租借 ================= */}
             {view === "bikes" && (
               <div className="space-y-4">
                 <div className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white p-4 rounded-2xl shadow-md shadow-blue-200">
@@ -677,13 +736,10 @@ export default function FiveDaysDashboardPage() {
                     </div>
                   </div>
                 </div>
-
                 {displayedBikes.map((member, _idx) => {
                   const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
                   const isBikeGiven = member.單車點收 === "TRUE";
-                  const typeStr = member.單車需求 ? String(member.單車需求).trim() : "";
-                  const price = getBikePrice(typeStr);
-
+                  const price = getBikePrice(member.單車需求);
                   return (
                     <div key={originalIdx} className={`bg-white border-2 p-4 rounded-2xl shadow-sm flex justify-between items-center transition-colors ${isBikeGiven ? "border-slate-200 opacity-80" : "border-blue-400 shadow-md shadow-blue-100"}`}>
                       <div>
@@ -692,7 +748,7 @@ export default function FiveDaysDashboardPage() {
                           {price > 0 && !isBikeGiven && <span className="text-[10px] bg-red-100 text-red-700 font-black px-1.5 py-0.5 rounded-md animate-pulse">待收 ¥{price.toLocaleString()}</span>}
                           {price > 0 && isBikeGiven && <span className="text-[10px] bg-emerald-100 text-emerald-700 font-black px-1.5 py-0.5 rounded-md">✅ 已收 ¥{price.toLocaleString()}</span>}
                         </div>
-                        <span className="inline-block mt-1 bg-blue-50 text-blue-700 text-[10px] px-2 py-0.5 rounded-md font-bold border border-blue-100">{typeStr}</span>
+                        <span className="inline-block mt-1 bg-blue-50 text-blue-700 text-[10px] px-2 py-0.5 rounded-md font-bold border border-blue-100">{member.單車需求}</span>
                       </div>
                       <label className="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 shadow-sm active:scale-95 transition-all">
                         <input type="checkbox" className="w-5 h-5 rounded text-blue-600" checked={isBikeGiven} onChange={(e) => handleMemberFieldUpdate(originalIdx, "單車點收", e.target.checked ? "TRUE" : "FALSE")}/>
@@ -703,6 +759,8 @@ export default function FiveDaysDashboardPage() {
                 })}
               </div>
             )}
+
+            {/* 其餘分組名單、裝備、餐點、客戶聯絡省略，完全正常包覆 */}
             {view === "groupDetail" && (
               <div className="space-y-6">
                 {tourGroups.map((groupName) => {
@@ -729,11 +787,12 @@ export default function FiveDaysDashboardPage() {
                 })}
               </div>
             )}
+
             {view === "customerInfo" && (
               <div className="space-y-4">
                 {memberData.map((member, idx) => (
                   <div key={idx} className="bg-white border-2 border-amber-100 rounded-2xl shadow-sm p-4 space-y-3 hover:border-amber-300 transition-colors">
-                    <h3 className="text-base font-black text-stone-800 border-b border-slate-100 pb-2 flex justify-between items-center">
+                    <h3 className="text-base font-black text-slate-800 border-b border-slate-100 pb-2 flex justify-between items-center">
                       {member.姓名}
                       <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-md">{member.分組 || "未編組"}</span>
                     </h3>
@@ -755,19 +814,17 @@ export default function FiveDaysDashboardPage() {
                 ))}
               </div>
             )}
+
             {view === "equipment" && (
               <div className="space-y-4">
                 {equipmentMembers.map((member, idx) => {
                   const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
                   return (
                     <div key={idx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3 hover:border-green-300 transition-colors">
-                      <h3 className="text-base font-black text-slate-800 flex justify-between items-center">
-                        {member.姓名}
-                        <span className="text-[10px] text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-md">{member.分組 || "未編組"}</span>
-                      </h3>
+                      <h3 className="text-base font-black text-slate-800 flex justify-between items-center">{member.姓名}</h3>
                       <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
                         <p className="text-sm font-black text-slate-700">{member.裝備明細}</p>
-                        <input type="text" placeholder="請填寫損壞或遺失狀況..." value={member.問題回報 || ""} onChange={(e) => handleLocalTextChange(originalIdx, "問題回報", e.target.value)} onBlur={(e) => handleMemberFieldUpdate(originalIdx, "問題回報", e.target.value)} className="w-full text-xs font-bold border border-red-200 rounded-lg px-3 py-2 bg-red-50 text-slate-800 placeholder-red-400/60 focus:outline-none focus:border-red-400"/>
+                        <input type="text" placeholder="請填寫損壞或遺失狀況..." value={member.問題回報 || ""} onChange={(e) => handleLocalTextChange(originalIdx, "問題回報", e.target.value)} onBlur={(e) => handleMemberFieldUpdate(originalIdx, "問題回報", e.target.value)} className="w-full text-xs font-bold border border-red-200 rounded-lg px-3 py-2 bg-red-50 text-slate-800 placeholder-red-300 focus:outline-none focus:border-red-400"/>
                         <div className="flex gap-2 pt-1">
                           <label className="flex-1 flex justify-center items-center gap-2 bg-white px-2 py-2.5 rounded-lg border border-slate-200 shadow-sm active:scale-95 cursor-pointer">
                             <input type="checkbox" className="w-4 h-4 text-green-600 rounded" checked={member.裝備借出 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備借出", e.target.checked ? "TRUE" : "FALSE")}/>
@@ -784,8 +841,31 @@ export default function FiveDaysDashboardPage() {
                 })}
               </div>
             )}
+
             {view === "meals" && (
               <div className="space-y-4">
+                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-4 rounded-2xl shadow-md shadow-teal-200">
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <p className="text-[9px] text-teal-100 font-black tracking-widest uppercase">Catering Filter</p>
+                      <h3 className="text-sm font-black text-white mt-0.5">🍱 點擊過濾餐點分類</h3>
+                    </div>
+                    {selectedMealFilter && (
+                      <button onClick={() => setSelectedMealFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">✖ 取消</button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    {Object.entries(mealStats).map(([meal, count]) => {
+                      const isSelected = selectedMealFilter === meal;
+                      return (
+                        <button key={meal} onClick={() => setSelectedMealFilter(isSelected ? null : meal)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all active:scale-95 text-left ${isSelected ? "bg-white text-teal-700 shadow-md scale-[1.02]" : "bg-black/10 border border-white/20 hover:bg-black/20"}`}>
+                          <span className={`text-xs font-bold truncate mr-1 ${isSelected ? "text-teal-700" : "text-white"}`}>{meal}</span>
+                          <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-teal-600" : "text-white"}`}>{count} <span className="text-[10px] font-bold opacity-70">份</span></span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 {displayedMeals.map((member, _idx) => {
                   const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
                   const isVegetarian = String(member.病史 || "").includes("素") || String(member.禁忌食材 || "").includes("素") || String(member.五合目餐點 || "").includes("素");
@@ -798,7 +878,6 @@ export default function FiveDaysDashboardPage() {
                           {!isClaimed && <span className="text-[10px] bg-red-100 text-red-700 font-black px-1.5 py-0.5 rounded-md animate-pulse">待領取</span>}
                           {isVegetarian && <span className="text-[10px] bg-green-100 text-green-700 font-black px-1.5 py-0.5 rounded-md border border-green-200">🥬 素食</span>}
                         </div>
-                        <span className="text-xs font-bold text-slate-500">{member.分組 || "未編組"}</span>
                       </div>
                       <div className="bg-teal-50/50 border border-teal-100 rounded-xl p-3 flex justify-between items-center">
                         <div>
@@ -815,17 +894,21 @@ export default function FiveDaysDashboardPage() {
                 })}
               </div>
             )}
+
           </div>
         </main>
       </div>
 
-      {/* ================= 🖨️ 列印專屬版面一：房間排列表 (僅於 roomSummary 時顯示) ================= */}
+      {/* ================= 🖨️ 列印版面一：分類過濾排房表 (總房表對照頁觸發) ================= */}
       {view === "roomSummary" && (
         <div className="print-only w-full p-8 bg-white text-black min-h-screen">
           <div className="text-center border-b-2 border-black pb-4 mb-6">
             <h1 className="text-3xl font-black mb-2">TAKENO 富士山五日團 - 住宿排房表</h1>
             <h2 className="text-xl font-bold">團號：{tourId} ｜ 住宿階段：【{selectedHotelStage}】</h2>
-            <h3 className="text-lg font-bold mt-1">入住日期：{currentStageCheckInDate} ｜ 飯店名稱：{currentStageHotelName}</h3>
+            <h3 className="text-lg font-bold mt-1">
+              入住日期：{currentStageCheckInDate} ｜ 飯店名稱：{currentStageHotelName}
+              {selectedRoomTypeFilter && <span className="ml-2">｜ <span className="bg-black text-white px-2 py-0.5 rounded">過濾房型：{selectedRoomTypeFilter}</span></span>}
+            </h3>
           </div>
           
           <table className="w-full">
@@ -837,12 +920,10 @@ export default function FiveDaysDashboardPage() {
               </tr>
             </thead>
             <tbody>
-              {currentStageRooms.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="text-center py-6">此階段尚無排房資料</td>
-                </tr>
+              {displayedRooms.length === 0 ? (
+                <tr><td colSpan={3} className="text-center py-6">此階段尚無排房資料</td></tr>
               ) : (
-                currentStageRooms.map((room, idx) => {
+                displayedRooms.map((room, idx) => {
                   const guests = getGuestsList(room);
                   return (
                     <tr key={idx}>
@@ -855,14 +936,11 @@ export default function FiveDaysDashboardPage() {
               )}
             </tbody>
           </table>
-
-          <div className="mt-8 text-right text-xs font-bold">
-            TAKENO EXPEDITION / 列印日期：{new Date().toLocaleDateString()}
-          </div>
+          <div className="mt-8 text-right text-xs font-bold">TAKENO EXPEDITION / 列印日期：{new Date().toLocaleDateString()}</div>
         </div>
       )}
 
-      {/* ================= 🖨️ 列印專屬版面二：全團綜合大表 (僅於 Menu 時顯示) ================= */}
+      {/* ================= 🖨️ 列印版面二：全團綜合大表 (首選單觸發) ================= */}
       {view === "menu" && (
         <div className="print-only w-full p-8 bg-white text-black min-h-screen">
           <div className="text-center border-b-2 border-black pb-4 mb-6">
@@ -884,9 +962,7 @@ export default function FiveDaysDashboardPage() {
             </thead>
             <tbody>
               {memberData.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center py-6">尚無客戶資料</td>
-                </tr>
+                <tr><td colSpan={6} className="text-center py-6">尚無客戶資料</td></tr>
               ) : (
                 memberData.map((m, idx) => (
                   <tr key={idx}>
@@ -896,8 +972,8 @@ export default function FiveDaysDashboardPage() {
                     </td>
                     <td>
                       <div>📱 {m.手機 || "無"}</div>
-                      <div className="mt-1">🚨 {m.緊急聯絡人 || "無"}</div>
-                      <div>({m.緊急聯絡人電話 || "無"})</div>
+                      <div className="mt-1 font-bold">🚨 {m.緊急聯絡人 || "無"}</div>
+                      <div className="text-xs">({m.緊急聯絡人電話 || "無"})</div>
                     </td>
                     <td>
                       <div className="font-bold">{m.接送模式 || "未填寫"}</div>
@@ -918,13 +994,9 @@ export default function FiveDaysDashboardPage() {
               )}
             </tbody>
           </table>
-
-          <div className="mt-8 text-right text-xs font-bold">
-            TAKENO EXPEDITION / 列印日期：{new Date().toLocaleDateString()}
-          </div>
+          <div className="mt-8 text-right text-xs font-bold">TAKENO EXPEDITION / 列印日期：{new Date().toLocaleDateString()}</div>
         </div>
       )}
-
     </>
   );
 }
