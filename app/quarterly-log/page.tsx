@@ -48,7 +48,7 @@ export default function QuarterlyLogPage() {
   const [editFormPerson, setEditFormPerson] = useState("");
   const [editFormNotes, setEditFormNotes] = useState("");
 
-  // 建團表單 (🌟 新增 3 位嚮導的 State)
+  // 建團表單
   const [formTourId, setFormTourId] = useState("");
   const [formTourName, setFormTourName] = useState("富士山三日團");
   const [formCustomActivityName, setFormCustomActivityName] = useState("");
@@ -87,7 +87,6 @@ export default function QuarterlyLogPage() {
       setUserRole(savedRole);
       setCurrentUserName(savedName);
       
-      // 🌟 防呆：一般嚮導若強制進入非法網址，一律踢回班表
       if (savedRole !== "admin" && (subView === "backoffice" || subView === "settings" || subView === "print")) {
         setSubView("my-schedule");
       }
@@ -139,9 +138,9 @@ export default function QuarterlyLogPage() {
         團名: finalTourName,
         出發日期: formTourDate,
         天數: formTourDays,
-        負責嚮導1: formTourGuide1.trim(), // 🌟 寫入嚮導 1
-        負責嚮導2: formTourGuide2.trim(), // 🌟 寫入嚮導 2
-        負責嚮導3: formTourGuide3.trim()  // 🌟 寫入嚮導 3
+        負責嚮導1: formTourGuide1.trim(),
+        負責嚮導2: formTourGuide2.trim(),
+        負責嚮導3: formTourGuide3.trim()
       };
 
       const res = await fetch(`${SHEETDB_URL}?sheet=團期排程表`, {
@@ -338,11 +337,9 @@ export default function QuarterlyLogPage() {
         const loopKey = `${y}-${m}-${dd}`;
         
         if (timelineMap[loopKey]) {
-          // 🌟 針對班表或總表，列印出當天團期，並自動顯示該團的負責嚮導名單
           const guides = [t.負責嚮導1, t.負責嚮導2, t.負責嚮導3].filter(Boolean).join("、");
           const tourLabel = guides ? `${t.團號} (D${d}) - 帶團: ${guides}` : `${t.團號} (D${d})`;
           
-          // 如果是個人視角，只有自己是嚮導才顯示這團的色塊
           if (mode === "personal") {
             if (guides.includes(currentUserName)) {
               timelineMap[loopKey].activeTours.push(tourLabel);
@@ -404,7 +401,6 @@ export default function QuarterlyLogPage() {
   const printableEvents = getPrintableEvents();
   const selectedTourObj = tours.find(t => t.團號 === printTourId);
 
-  // 🌟 動態計算按鈕的欄數配置
   const gridCols = userRole === "admin" ? "grid-cols-5" : "grid-cols-2";
 
   return (
@@ -442,7 +438,7 @@ export default function QuarterlyLogPage() {
         </Link>
       </div>
 
-      {/* 🌟 智慧分頁頁籤：依照權限嚴格過濾顯示按鈕 */}
+      {/* 智慧分頁頁籤 */}
       <div className={`w-full max-w-md px-4 mt-4 grid ${gridCols} gap-1.5 no-print`}>
         <button onClick={() => setSubView("my-schedule")} className={`py-3 text-[10px] font-black rounded-xl border transition-all text-center ${subView === "my-schedule" ? "bg-stone-900 text-amber-400 border-stone-950 shadow-sm" : "bg-white text-stone-600 border-stone-200 hover:bg-stone-50"}`}>
           📅 我的班表
@@ -451,7 +447,6 @@ export default function QuarterlyLogPage() {
           📋 總表
         </button>
         
-        {/* 以下按鈕僅限管理員顯示 */}
         {userRole === "admin" && (
           <>
             <button onClick={() => setSubView("settings")} className={`py-3 text-[10px] font-black rounded-xl border transition-all text-center ${subView === "settings" ? "bg-stone-900 text-amber-400 border-stone-950 shadow-sm" : "bg-white text-stone-600 border-stone-200 hover:bg-stone-50"}`}>
@@ -507,8 +502,8 @@ export default function QuarterlyLogPage() {
                       {day.events.map((e, idx) => {
                         let displayTag = e.標籤分類;
                         let tagStyle = "bg-amber-400 text-stone-950 border-transparent";
-                        if (displayTag === "航班狀況-IN") { displayTag = "🛬 航班 IN (抵達)"; tagStyle = "bg-sky-500 text-white border-sky-600"; }
-                        else if (displayTag === "航班狀況-OUT") { displayTag = "🛫 航班 OUT (離開)"; tagStyle = "bg-rose-500 text-white border-rose-600"; }
+                        if (displayTag === "航班狀況-IN") { displayTag = "🛬 航班接機 IN"; tagStyle = "bg-sky-500 text-white border-sky-600"; }
+                        else if (displayTag === "航班狀況-OUT") { displayTag = "🛫 航班送機 OUT"; tagStyle = "bg-rose-500 text-white border-rose-600"; }
                         
                         return (
                           <div key={idx} className="bg-stone-50 border border-stone-200 p-3 rounded-xl space-y-1.5">
@@ -536,7 +531,7 @@ export default function QuarterlyLogPage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="text-[10px] font-black text-stone-500 block mb-1 pl-0.5">🗓️ 按月份篩選</label>
-                  <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-2 py-2 bg-stone-50 text-stone-800">
+                  <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-2 py-2 bg-stone-50 text-stone-800 focus:outline-none focus:border-emerald-600">
                     <option value="all">顯示整個工作季度</option>
                     <option value="07">7 月份 (JUL)</option>
                     <option value="08">8 月份 (AUG)</option>
@@ -547,7 +542,7 @@ export default function QuarterlyLogPage() {
                 </div>
                 <div>
                   <label className="text-[10px] font-black text-stone-500 block mb-1 pl-0.5">🏔️ 按指定團號過濾</label>
-                  <select value={filterTour} onChange={(e) => setFilterTour(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-2 py-2 bg-stone-50 text-stone-800">
+                  <select value={filterTour} onChange={(e) => setFilterTour(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-2 py-2 bg-stone-50 text-stone-800 focus:outline-none focus:border-emerald-600">
                     <option value="all">全公司所有梯次</option>
                     {tours.map((t) => <option key={t.團號} value={t.團號}>{t.團號} ({t.團名})</option>)}
                   </select>
@@ -599,7 +594,6 @@ export default function QuarterlyLogPage() {
                                 <p className="text-xs font-bold text-stone-700 leading-relaxed whitespace-pre-wrap pl-0.5">{e.詳細備註}</p>
                               </div>
                               
-                              {/* 🌟 權限控管：只有管理員才能看到編輯與刪除按鈕 */}
                               {userRole === "admin" && (
                                 <div className="border-t border-stone-200/60 pt-2 mt-1 flex justify-end gap-2">
                                   <button onClick={() => openEditModal(e)} disabled={isDeleting || syncStatus === "saving"} className="text-[10px] font-black text-stone-500 bg-white border border-stone-200 hover:border-emerald-400 hover:text-emerald-700 px-3 py-1.5 rounded-lg transition-all active:scale-95 disabled:opacity-50">✏️ 編輯修改</button>
@@ -624,41 +618,41 @@ export default function QuarterlyLogPage() {
             <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Log Event Factory</p>
             <div>
               <label className="text-xs font-black text-stone-700 block mb-1">📅 選擇調度日期</label>
-              <input type="date" min="2026-07-08" max="2026-11-02" value={formLogDate} onChange={(e) => setFormLogDate(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl px-3 py-2.5 font-bold text-stone-800 bg-stone-50"/>
+              <input type="date" min="2026-07-08" max="2026-11-02" value={formLogDate} onChange={(e) => setFormLogDate(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl px-3 py-2.5 font-bold text-stone-800 bg-stone-50 focus:outline-none focus:border-emerald-600"/>
             </div>
             <div>
               <label className="text-xs font-black text-stone-700 block mb-1.5">🏷️ 選擇工作分類標籤</label>
               <div className="grid grid-cols-2 gap-1.5">
                 {["飯店預約", "活動/交通", "人力排班", "航班狀況", "休假住宿", "團務交接"].map((tag) => (
-                  <button key={tag} type="button" onClick={() => setFormLogTag(tag)} className={`py-2 rounded-xl text-xs font-black border transition-all ${formLogTag === tag ? "bg-amber-500 text-stone-950 border-amber-600 shadow-sm" : "bg-stone-50 text-stone-600 border-stone-200"}`}>{tag}</button>
+                  <button key={tag} type="button" onClick={() => setFormLogTag(tag)} className={`py-2 rounded-xl text-xs font-black border transition-all ${formLogTag === tag ? "bg-amber-500 text-stone-950 border-amber-600 shadow-sm" : "bg-stone-50 text-stone-600 border-stone-200 hover:bg-stone-100"}`}>{tag}</button>
                 ))}
               </div>
               {formLogTag === "航班狀況" && (
                 <div className="mt-2 p-2 bg-stone-100 border border-stone-200 rounded-xl flex gap-2">
-                  <button type="button" onClick={() => setFormLogFlightDir("IN")} className={`flex-1 py-1.5 rounded-lg text-[10px] font-black ${formLogFlightDir === "IN" ? "bg-sky-500 text-white shadow-sm" : "bg-white text-stone-400 border border-stone-200"}`}>🛬 IN (抵達日本)</button>
-                  <button type="button" onClick={() => setFormLogFlightDir("OUT")} className={`flex-1 py-1.5 rounded-lg text-[10px] font-black ${formLogFlightDir === "OUT" ? "bg-rose-500 text-white shadow-sm" : "bg-white text-stone-400 border border-stone-200"}`}>🛫 OUT (離開日本)</button>
+                  <button type="button" onClick={() => setFormLogFlightDir("IN")} className={`flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all ${formLogFlightDir === "IN" ? "bg-sky-500 text-white shadow-sm border border-sky-600" : "bg-white text-stone-400 border border-stone-200"}`}>🛬 IN (抵達日本)</button>
+                  <button type="button" onClick={() => setFormLogFlightDir("OUT")} className={`flex-1 py-1.5 rounded-lg text-[10px] font-black transition-all ${formLogFlightDir === "OUT" ? "bg-rose-500 text-white shadow-sm border border-rose-600" : "bg-white text-stone-400 border border-stone-200"}`}>🛫 OUT (離開日本)</button>
                 </div>
               )}
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs font-black text-stone-700 block mb-1">🏔️ 關聯團號 (選填)</label>
-                <select value={formLogTourId} onChange={(e) => setFormLogTourId(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-2 py-2.5 bg-stone-50 text-stone-800">
-                  <option value="">-- 無 --</option>
+                <select value={formLogTourId} onChange={(e) => setFormLogTourId(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-2 py-2.5 bg-stone-50 text-stone-800 focus:outline-none focus:border-emerald-600">
+                  <option value="">-- 無關聯團號 --</option>
                   {tours.map((t) => <option key={t.團號} value={t.團號}>{t.團號}</option>)}
                 </select>
               </div>
               <div>
                 <label className="text-xs font-black text-stone-700 block mb-1">👤 關聯人員排班 (選填)</label>
-                <input type="text" placeholder="小魚、老胡..." value={formLogPerson} onChange={(e) => setFormLogPerson(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-3 py-2 bg-stone-50 text-stone-800"/>
+                <input type="text" placeholder="例如：小魚、老胡" value={formLogPerson} onChange={(e) => setFormLogPerson(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-3 py-2 bg-stone-50 text-stone-800 focus:outline-none focus:border-emerald-600"/>
               </div>
             </div>
             <div>
               <label className="text-xs font-black text-stone-700 block mb-1">📝 詳細調度與交接備註</label>
-              <textarea rows={5} placeholder="請輸入細節內容..." value={formLogNotes} onChange={(e) => setFormLogNotes(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-3 py-2 bg-stone-50 text-stone-800 leading-relaxed shadow-inner"/>
+              <textarea rows={5} placeholder="請輸入細節內容..." value={formLogNotes} onChange={(e) => setFormLogNotes(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-3 py-2 bg-stone-50 text-stone-800 focus:outline-none focus:border-emerald-600 shadow-inner leading-relaxed"/>
             </div>
-            <button type="submit" disabled={syncStatus === "saving"} className="w-full bg-stone-900 text-amber-400 font-black py-4 rounded-xl shadow-md text-sm disabled:opacity-50">
-              {syncStatus === "saving" ? "⏳ 雲端同步中..." : "➕ 儲存本日事件回傳雲端 ➔"}
+            <button type="submit" disabled={syncStatus === "saving"} className="w-full bg-stone-900 hover:bg-stone-800 text-amber-400 font-black py-4 rounded-xl shadow-md transition-all active:scale-95 text-center text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+              {syncStatus === "saving" ? "⏳ 雲端同步中請稍候..." : "➕ 儲存本日事件回傳雲端 ➔"}
             </button>
           </form>
         )}
@@ -675,15 +669,15 @@ export default function QuarterlyLogPage() {
               <div>
                 <label className="text-xs font-black text-stone-700 block mb-1">1. 選擇報表產出模式</label>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setPrintType("tour")} className={`flex-1 py-2 text-xs font-black rounded-lg border transition-all ${printType === "tour" ? "bg-stone-900 text-amber-400 shadow-sm" : "bg-stone-50 text-stone-500"}`}>🎯 指定產品團號</button>
-                  <button type="button" onClick={() => setPrintType("date")} className={`flex-1 py-2 text-xs font-black rounded-lg border transition-all ${printType === "date" ? "bg-stone-900 text-amber-400 shadow-sm" : "bg-stone-50 text-stone-500"}`}>📅 指定日期區間</button>
+                  <button type="button" onClick={() => setPrintType("tour")} className={`flex-1 py-2 text-xs font-black rounded-lg border transition-all ${printType === "tour" ? "bg-stone-900 text-amber-400 shadow-sm" : "bg-stone-50 text-stone-500 hover:bg-stone-100"}`}>🎯 指定產品團號</button>
+                  <button type="button" onClick={() => setPrintType("date")} className={`flex-1 py-2 text-xs font-black rounded-lg border transition-all ${printType === "date" ? "bg-stone-900 text-amber-400 shadow-sm" : "bg-stone-50 text-stone-500 hover:bg-stone-100"}`}>📅 指定日期區間</button>
                 </div>
               </div>
 
               {printType === "tour" ? (
                 <div>
                   <label className="text-xs font-black text-stone-700 block mb-1">2. 選擇目標出團梯次</label>
-                  <select value={printTourId} onChange={(e) => setPrintTourId(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-2 py-2.5 bg-stone-50 text-stone-800">
+                  <select value={printTourId} onChange={(e) => setPrintTourId(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-xl px-2 py-2.5 bg-stone-50 text-stone-800 focus:outline-none focus:border-emerald-600">
                     {tours.map((t) => <option key={t.團號} value={t.團號}>{t.團號} — {t.團名}</option>)}
                   </select>
                 </div>
@@ -691,11 +685,11 @@ export default function QuarterlyLogPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="text-xs font-black text-stone-700 block mb-1">開始日期</label>
-                    <input type="date" value={printStartDate} onChange={(e) => setPrintStartDate(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl p-2 text-xs text-stone-800 bg-stone-50" />
+                    <input type="date" value={printStartDate} onChange={(e) => setPrintStartDate(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl p-2 text-xs font-bold text-stone-800 bg-stone-50 focus:outline-none focus:border-emerald-600" />
                   </div>
                   <div>
                     <label className="text-xs font-black text-stone-700 block mb-1">結束日期</label>
-                    <input type="date" value={printEndDate} onChange={(e) => setPrintEndDate(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl p-2 text-xs text-stone-800 bg-stone-50" />
+                    <input type="date" value={printEndDate} onChange={(e) => setPrintEndDate(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl p-2 text-xs font-bold text-stone-800 bg-stone-50 focus:outline-none focus:border-emerald-600" />
                   </div>
                 </div>
               )}
@@ -706,7 +700,7 @@ export default function QuarterlyLogPage() {
               <p className="text-xs font-bold text-stone-700">預計產出：<span className="text-emerald-700 font-black">{printableEvents.length}</span> 筆調度安排明細</p>
             </div>
 
-            <button type="button" onClick={triggerPrintAction} className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-xl shadow-md transition-all text-center text-sm">
+            <button type="button" onClick={triggerPrintAction} className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-xl shadow-md transition-all active:scale-95 text-center text-sm">
               🖨️ 產生並啟動 A4 紙張列印 ➔
             </button>
           </div>
@@ -722,11 +716,11 @@ export default function QuarterlyLogPage() {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs font-black text-stone-700 block mb-1">🏔️ 創立團號</label>
-                <input type="text" placeholder="如: S1" value={formTourId} onChange={(e) => setFormTourId(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl px-3 py-2.5 font-bold text-stone-800 bg-stone-50 uppercase"/>
+                <input type="text" placeholder="如: S1" value={formTourId} onChange={(e) => setFormTourId(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl px-3 py-2.5 font-bold text-stone-800 bg-stone-50 uppercase focus:outline-none focus:border-emerald-600"/>
               </div>
               <div>
                 <label className="text-xs font-black text-stone-700 block mb-1">出團天數</label>
-                <select value={formTourDays} onChange={(e) => setFormTourDays(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl px-3 py-2.5 font-bold text-stone-800 bg-stone-50">
+                <select value={formTourDays} onChange={(e) => setFormTourDays(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl px-3 py-2.5 font-bold text-stone-800 bg-stone-50 focus:outline-none focus:border-emerald-600">
                   {[3,4,5,6,7,8,9,10].map(d => <option key={d} value={d}>{d} 天</option>)}
                 </select>
               </div>
@@ -734,7 +728,7 @@ export default function QuarterlyLogPage() {
 
             <div>
               <label className="text-xs font-black text-stone-700 block mb-1">🏷️ 產品系列團名</label>
-              <select value={formTourName} onChange={(e) => setFormTourName(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl px-3 py-2.5 font-bold text-stone-800 bg-stone-50">
+              <select value={formTourName} onChange={(e) => setFormTourName(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl px-3 py-2.5 font-bold text-stone-800 bg-stone-50 focus:outline-none focus:border-emerald-600">
                 <option value="富士山三日團">🗻 富士山三日團</option>
                 <option value="富士山五日團">🇯🇵 富士山五日團</option>
                 <option value="日本登山系列團">🧗 日本登山系列團</option>
@@ -743,26 +737,25 @@ export default function QuarterlyLogPage() {
             {formTourName === "日本登山系列團" && (
               <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100">
                 <label className="text-xs font-black text-emerald-800 block mb-1">🎯 確切活動名稱 (必填)</label>
-                <input type="text" placeholder="例如：槍岳表銀座..." value={formCustomActivityName} onChange={(e) => setFormCustomActivityName(e.target.value)} className="w-full border-2 border-emerald-200 rounded-xl p-2 font-bold text-stone-800 bg-white"/>
+                <input type="text" placeholder="例如：槍岳表銀座..." value={formCustomActivityName} onChange={(e) => setFormCustomActivityName(e.target.value)} className="w-full border-2 border-emerald-200 rounded-xl p-2 font-bold text-stone-800 bg-white focus:outline-none focus:border-emerald-600"/>
               </div>
             )}
 
             <div>
               <label className="text-xs font-black text-stone-700 block mb-1">出發日期</label>
-              <input type="date" min="2026-07-08" max="2026-11-02" value={formTourDate} onChange={(e) => setFormTourDate(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl p-3 font-bold text-stone-800 bg-stone-50 text-xs"/>
+              <input type="date" min="2026-07-08" max="2026-11-02" value={formTourDate} onChange={(e) => setFormTourDate(e.target.value)} className="w-full border-2 border-stone-200 rounded-xl p-3 font-bold text-stone-800 bg-stone-50 text-xs focus:outline-none focus:border-emerald-600"/>
             </div>
 
-            {/* 🌟 核心新增：直接指派 3 位負責嚮導 */}
             <div className="pt-2 border-t border-stone-200/60">
               <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest block mb-2">Assign Guides</label>
               <div className="space-y-2">
-                <input type="text" placeholder="負責嚮導 1 (主力)" value={formTourGuide1} onChange={(e) => setFormTourGuide1(e.target.value)} className="w-full border-2 border-stone-200 rounded-lg p-2 font-bold text-stone-800 bg-stone-50 text-xs"/>
-                <input type="text" placeholder="負責嚮導 2" value={formTourGuide2} onChange={(e) => setFormTourGuide2(e.target.value)} className="w-full border-2 border-stone-200 rounded-lg p-2 font-bold text-stone-800 bg-stone-50 text-xs"/>
-                <input type="text" placeholder="負責嚮導 3" value={formTourGuide3} onChange={(e) => setFormTourGuide3(e.target.value)} className="w-full border-2 border-stone-200 rounded-lg p-2 font-bold text-stone-800 bg-stone-50 text-xs"/>
+                <input type="text" placeholder="負責嚮導 1 (主力)" value={formTourGuide1} onChange={(e) => setFormTourGuide1(e.target.value)} className="w-full border-2 border-stone-200 rounded-lg p-2 font-bold text-stone-800 bg-stone-50 text-xs focus:outline-none focus:border-emerald-600"/>
+                <input type="text" placeholder="負責嚮導 2" value={formTourGuide2} onChange={(e) => setFormTourGuide2(e.target.value)} className="w-full border-2 border-stone-200 rounded-lg p-2 font-bold text-stone-800 bg-stone-50 text-xs focus:outline-none focus:border-emerald-600"/>
+                <input type="text" placeholder="負責嚮導 3" value={formTourGuide3} onChange={(e) => setFormTourGuide3(e.target.value)} className="w-full border-2 border-stone-200 rounded-lg p-2 font-bold text-stone-800 bg-stone-50 text-xs focus:outline-none focus:border-emerald-600"/>
               </div>
             </div>
 
-            <button type="submit" disabled={syncStatus === "saving"} className="w-full bg-emerald-700 text-white font-black py-4 rounded-xl text-sm disabled:opacity-50 shadow-md">🚀 成立產品梯次與排班 ➔</button>
+            <button type="submit" disabled={syncStatus === "saving"} className="w-full bg-emerald-700 hover:bg-emerald-600 text-white font-black py-4 rounded-xl text-sm disabled:opacity-50 shadow-md transition-all active:scale-95">🚀 成立產品梯次與排班 ➔</button>
           </form>
         )}
       </div>
@@ -816,7 +809,7 @@ export default function QuarterlyLogPage() {
         </div>
       </div>
 
-      {/* ================= 浮動編輯視窗 Modal ================= */}
+      {/* ================= 🌟 [編輯日誌的浮動視窗 Modal] (全面修正文字對比度) ================= */}
       {editingLog && userRole === "admin" && (
         <div className="fixed inset-0 bg-stone-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -829,11 +822,11 @@ export default function QuarterlyLogPage() {
                 <div className="bg-white p-4 rounded-xl border border-stone-200 shadow-sm space-y-3">
                   <div>
                     <label className="text-xs font-black text-stone-700 block mb-1">📅 調度日期</label>
-                    <input type="date" min="2026-07-08" max="2026-11-02" value={editFormDate} onChange={(e) => setEditFormDate(e.target.value)} className="w-full border-2 border-stone-200 rounded-lg p-2 font-bold text-stone-800 bg-stone-50"/>
+                    <input type="date" min="2026-07-08" max="2026-11-02" value={editFormDate} onChange={(e) => setEditFormDate(e.target.value)} className="w-full border-2 border-stone-200 rounded-lg p-2 font-bold text-stone-900 bg-stone-50 focus:outline-none focus:border-amber-500"/>
                   </div>
                   <div>
                     <label className="text-xs font-black text-stone-700 block mb-1">🏷️ 標籤分類</label>
-                    <select value={editFormTag} onChange={(e) => setEditFormTag(e.target.value)} className="w-full border-2 border-stone-200 rounded-lg p-2 font-bold text-stone-800 bg-stone-50">
+                    <select value={editFormTag} onChange={(e) => setEditFormTag(e.target.value)} className="w-full border-2 border-stone-200 rounded-lg p-2 font-bold text-stone-900 bg-stone-50 focus:outline-none focus:border-amber-500">
                       <option value="飯店預約">飯店預約</option>
                       <option value="活動/交通">活動/交通</option>
                       <option value="人力排班">人力排班</option>
@@ -843,32 +836,32 @@ export default function QuarterlyLogPage() {
                     </select>
                     {editFormTag === "航班狀況" && (
                       <div className="mt-2 p-2 bg-stone-100 border border-stone-200 rounded-lg flex gap-2">
-                        <button type="button" onClick={() => setEditFormFlightDir("IN")} className={`flex-1 py-1.5 rounded-md text-[10px] font-black ${editFormFlightDir === "IN" ? "bg-sky-500 text-white shadow-sm" : "bg-white text-stone-400"}`}>🛬 IN (抵達)</button>
-                        <button type="button" onClick={() => setEditFormFlightDir("OUT")} className={`flex-1 py-1.5 rounded-md text-[10px] font-black ${editFormFlightDir === "OUT" ? "bg-rose-500 text-white shadow-sm" : "bg-white text-stone-400"}`}>🛫 OUT (離開)</button>
+                        <button type="button" onClick={() => setEditFormFlightDir("IN")} className={`flex-1 py-1.5 rounded-md text-[10px] font-black ${editFormFlightDir === "IN" ? "bg-sky-500 text-white shadow-sm border border-sky-600" : "bg-white text-stone-400 border border-stone-200"}`}>🛬 IN (抵達)</button>
+                        <button type="button" onClick={() => setEditFormFlightDir("OUT")} className={`flex-1 py-1.5 rounded-md text-[10px] font-black ${editFormFlightDir === "OUT" ? "bg-rose-500 text-white shadow-sm border border-rose-600" : "bg-white text-stone-400 border border-stone-200"}`}>🛫 OUT (離開)</button>
                       </div>
                     )}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="text-xs font-black text-stone-700 block mb-1">🏔️ 關聯團號</label>
-                      <select value={editFormTourId} onChange={(e) => setEditFormTourId(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg p-2 bg-stone-50">
+                      <select value={editFormTourId} onChange={(e) => setEditFormTourId(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg p-2 bg-stone-50 text-stone-900 focus:outline-none focus:border-amber-500">
                         <option value="">-- 無 --</option>
                         {tours.map((t) => <option key={t.團號} value={t.團號}>{t.團號}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="text-xs font-black text-stone-700 block mb-1">👤 關聯人員</label>
-                      <input type="text" value={editFormPerson} onChange={(e) => setEditFormPerson(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg p-2 bg-stone-50"/>
+                      <input type="text" value={editFormPerson} onChange={(e) => setEditFormPerson(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg p-2 bg-stone-50 text-stone-900 focus:outline-none focus:border-amber-500"/>
                     </div>
                   </div>
                   <div>
                     <label className="text-xs font-black text-stone-700 block mb-1">📝 詳細備註</label>
-                    <textarea rows={5} value={editFormNotes} onChange={(e) => setEditFormNotes(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg p-2 bg-stone-50 shadow-inner"/>
+                    <textarea rows={5} value={editFormNotes} onChange={(e) => setEditFormNotes(e.target.value)} className="w-full text-xs font-bold border-2 border-stone-200 rounded-lg p-2 bg-stone-50 text-stone-900 shadow-inner focus:outline-none focus:border-amber-500"/>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" onClick={closeEditModal} disabled={syncStatus === "saving"} className="w-1/3 bg-stone-300 text-stone-700 font-black py-3 rounded-xl disabled:opacity-50">取消</button>
-                  <button type="submit" disabled={syncStatus === "saving"} className="w-2/3 bg-amber-500 text-stone-950 font-black py-3 rounded-xl shadow-md border disabled:opacity-50">💾 儲存修改</button>
+                  <button type="button" onClick={closeEditModal} disabled={syncStatus === "saving"} className="w-1/3 bg-stone-300 text-stone-700 font-black py-3 rounded-xl disabled:opacity-50 transition-all hover:bg-stone-400">取消</button>
+                  <button type="submit" disabled={syncStatus === "saving"} className="w-2/3 bg-amber-500 text-stone-950 font-black py-3 rounded-xl shadow-md border border-amber-600/50 disabled:opacity-50 transition-all hover:bg-amber-400">💾 儲存修改</button>
                 </div>
               </form>
             </div>
