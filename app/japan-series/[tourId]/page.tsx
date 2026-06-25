@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-// 🌟 拔除裝備、餐點、單車、分組，留下最精簡強悍的日本線核心
 type ViewState = "menu" | "checkin" | "customerInfo" | "rooms" | "roomSummary";
 
 interface OfflineQueueItem {
@@ -27,9 +26,11 @@ export default function JapanSeriesDashboardPage() {
   const [roomData, setRoomData] = useState<any[]>([]);
   const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
 
-  // ✈️ 接機模式過濾
+  // ✈️ 雙引擎：接機與送機模式過濾
   const [selectedPickupFilter, setSelectedPickupFilter] = useState<string | null>(null);
+  const [selectedDropoffFilter, setSelectedDropoffFilter] = useState<string | null>(null);
   const [pickupStats, setPickupStats] = useState<{ [key: string]: number }>({});
+  const [dropoffStats, setDropoffStats] = useState<{ [key: string]: number }>({});
 
   const [selectedHotelStage, setSelectedHotelStage] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -38,13 +39,20 @@ export default function JapanSeriesDashboardPage() {
 
   const calculateStats = (members: any[]) => {
     const pickupMap: { [key: string]: number } = {};
+    const dropoffMap: { [key: string]: number } = {};
 
     members.forEach((m: any) => {
-      const mode = m.接機模式 ? String(m.接機模式).trim() : "未定";
-      pickupMap[mode] = (pickupMap[mode] || 0) + 1;
+      // 計算接機
+      const pMode = m.接機模式 ? String(m.接機模式).trim() : "未定";
+      pickupMap[pMode] = (pickupMap[pMode] || 0) + 1;
+
+      // 計算送機
+      const dMode = m.送機模式 ? String(m.送機模式).trim() : "未定";
+      dropoffMap[dMode] = (dropoffMap[dMode] || 0) + 1;
     });
 
     setPickupStats(pickupMap);
+    setDropoffStats(dropoffMap);
   };
 
   async function fetchData() {
@@ -204,7 +212,6 @@ export default function JapanSeriesDashboardPage() {
     }
   };
 
-  // ⚡ 批次上傳引擎 (Promise.all 加速)
   const handleSaveAllAndSummary = async () => {
     setLoading(true);
     setSyncStatus("saving");
@@ -245,7 +252,6 @@ export default function JapanSeriesDashboardPage() {
     return Array.from(new Set(guests));
   };
 
-  // 🌟 自動抓取客人飲食禁忌與病史
   const getRoomDietaryRestrictions = (guests: string[]) => {
     const restrictions: string[] = [];
     guests.forEach(gName => {
@@ -272,20 +278,24 @@ export default function JapanSeriesDashboardPage() {
     );
   }
 
-  // 🌟 動態生成飯店階段 (自動掃描雲端表單)
   const availableStages = Array.from(new Set(roomData.map(r => r.住宿階段 ? String(r.住宿階段).trim() : "").filter(Boolean)));
   if (availableStages.length === 0) availableStages.push("首日住宿");
   const currentStage = availableStages.includes(selectedHotelStage) ? selectedHotelStage : availableStages[0];
 
-  // 🔍 全域智慧搜尋與報到過濾
-  let displayedCheckins = selectedPickupFilter ? memberData.filter(m => (m.接機模式 ? String(m.接機模式).trim() : "未定") === selectedPickupFilter) : [...memberData];
+  // 🔍 全域智慧搜尋與「雙引擎」接送機過濾
+  let displayedCheckins = [...memberData];
+  
+  if (selectedPickupFilter) {
+    displayedCheckins = displayedCheckins.filter(m => (m.接機模式 ? String(m.接機模式).trim() : "未定") === selectedPickupFilter);
+  }
+  if (selectedDropoffFilter) {
+    displayedCheckins = displayedCheckins.filter(m => (m.送機模式 ? String(m.送機模式).trim() : "未定") === selectedDropoffFilter);
+  }
   if (searchQuery.trim() !== "") {
     displayedCheckins = displayedCheckins.filter(m => m.姓名?.includes(searchQuery) || m.手機?.includes(searchQuery));
   }
-  displayedCheckins.sort((a, b) => (a.報到狀態 === "TRUE" ? 1 : -1));
   
-  const checkinTotal = displayedCheckins.length;
-  const checkinDone = displayedCheckins.filter(m => m.報到狀態 === "TRUE").length;
+  displayedCheckins.sort((a, b) => (a.報到狀態 === "TRUE" ? 1 : -1));
 
   const currentStageRooms = roomData.filter((r) => r.住宿階段 === currentStage);
   const currentStageHotelName = currentStageRooms.length > 0 && currentStageRooms[0].飯店名稱 ? currentStageRooms[0].飯店名稱 : "未定飯店";
@@ -309,7 +319,6 @@ export default function JapanSeriesDashboardPage() {
 
       <div className="no-print">
         <main className="min-h-screen bg-slate-50 flex flex-col items-center pb-12">
-          {/* 🌸 櫻花紫漸層頂部導覽列 */}
           <div className="w-full bg-gradient-to-r from-violet-900 to-indigo-950 text-white py-4 px-6 sticky top-0 z-20 flex items-center justify-between shadow-lg border-b border-violet-800/50">
             <div>
               <span className="text-[10px] font-black bg-white/20 backdrop-blur-md text-violet-100 px-2 py-0.5 rounded-full uppercase tracking-wider border border-white/20">
@@ -318,7 +327,7 @@ export default function JapanSeriesDashboardPage() {
               <h1 className="text-lg font-black text-white mt-1 tracking-wide drop-shadow-md">
                 {view === "menu" && "日本系列嚮導工作台"}
                 {view === "checkin" && "✈️ 機場接送與報到"}
-                {view === "customerInfo" && "👤 隊員聯絡與緊急資料"}
+                {view === "customerInfo" && "👤 隊員聯絡與飲食禁忌"}
                 {view === "rooms" && "🏨 多階段飯店排房"}
                 {view === "roomSummary" && "🗝️ 總房表快速對照"}
               </h1>
@@ -328,7 +337,7 @@ export default function JapanSeriesDashboardPage() {
                 返回總表
               </Link>
             ) : (
-              <button onClick={() => { setView("menu"); setSelectedPickupFilter(null); setSearchQuery(""); }} className="text-slate-900 text-xs font-black bg-white/90 hover:bg-white px-4 py-2 rounded-xl active:scale-95 transition-all shadow-md backdrop-blur-sm">
+              <button onClick={() => { setView("menu"); setSelectedPickupFilter(null); setSelectedDropoffFilter(null); setSearchQuery(""); }} className="text-slate-900 text-xs font-black bg-white/90 hover:bg-white px-4 py-2 rounded-xl active:scale-95 transition-all shadow-md backdrop-blur-sm">
                 ↩ 回選單
               </button>
             )}
@@ -373,7 +382,7 @@ export default function JapanSeriesDashboardPage() {
                 <button onClick={() => setView("checkin")} className="flex items-center justify-between bg-gradient-to-r from-violet-600 to-indigo-600 p-5 rounded-2xl shadow-md shadow-violet-200 text-white active:scale-[0.98] transition-all">
                   <div className="text-left">
                     <h2 className="text-lg font-black text-white">✈️ 機場接送與點名報到</h2>
-                    <p className="text-xs text-white/80 mt-1">智慧搜尋、航班與接送模式確認</p>
+                    <p className="text-xs text-white/80 mt-1">智慧搜尋、航班與接送模式雙過濾</p>
                   </div>
                   <span className="text-xl font-bold">➔</span>
                 </button>
@@ -423,23 +432,47 @@ export default function JapanSeriesDashboardPage() {
                 </div>
 
                 <div className="bg-gradient-to-br from-violet-600 to-indigo-700 text-white p-4 rounded-2xl shadow-md shadow-violet-200">
+                  {/* 🛬 接機過濾器 */}
                   <div className="flex justify-between items-end mb-3">
                     <div>
                       <p className="text-[9px] text-violet-200 font-black tracking-widest uppercase">Pick-up Filter</p>
-                      <h3 className="text-sm font-black text-white mt-0.5">✈️ 點擊過濾接機模式</h3>
+                      <h3 className="text-sm font-black text-white mt-0.5">🛬 點擊過濾接機模式</h3>
                     </div>
                     {selectedPickupFilter && (
                       <button onClick={() => setSelectedPickupFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">✖ 取消</button>
                     )}
                   </div>
-                  
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 gap-2 mb-4">
                     {Object.entries(pickupStats).map(([mode, count]) => {
                       const isSelected = selectedPickupFilter === mode;
                       return (
-                        <button key={mode} onClick={() => setSelectedPickupFilter(isSelected ? null : mode)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all ${isSelected ? "bg-white text-violet-700 shadow-md scale-[1.02]" : "bg-black/20 border border-white/10 hover:bg-black/30"}`}>
+                        <button key={`p-${mode}`} onClick={() => setSelectedPickupFilter(isSelected ? null : mode)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all ${isSelected ? "bg-white text-violet-700 shadow-md scale-[1.02]" : "bg-black/20 border border-white/10 hover:bg-black/30"}`}>
                           <span className={`text-[10px] font-bold truncate mr-1 ${isSelected ? "text-violet-700" : "text-violet-100"}`}>{mode}</span>
                           <span className={`text-base font-black ${isSelected ? "text-violet-600" : "text-white"}`}>{count} <span className="text-[9px]">人</span></span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <hr className="border-white/20 my-4" />
+
+                  {/* 🛫 送機過濾器 */}
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <p className="text-[9px] text-violet-200 font-black tracking-widest uppercase">Drop-off Filter</p>
+                      <h3 className="text-sm font-black text-white mt-0.5">🛫 點擊過濾送機模式</h3>
+                    </div>
+                    {selectedDropoffFilter && (
+                      <button onClick={() => setSelectedDropoffFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">✖ 取消</button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(dropoffStats).map(([mode, count]) => {
+                      const isSelected = selectedDropoffFilter === mode;
+                      return (
+                        <button key={`d-${mode}`} onClick={() => setSelectedDropoffFilter(isSelected ? null : mode)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all ${isSelected ? "bg-white text-indigo-700 shadow-md scale-[1.02]" : "bg-black/20 border border-white/10 hover:bg-black/30"}`}>
+                          <span className={`text-[10px] font-bold truncate mr-1 ${isSelected ? "text-indigo-700" : "text-indigo-100"}`}>{mode}</span>
+                          <span className={`text-base font-black ${isSelected ? "text-indigo-600" : "text-white"}`}>{count} <span className="text-[9px]">人</span></span>
                         </button>
                       );
                     })}
@@ -465,7 +498,7 @@ export default function JapanSeriesDashboardPage() {
                             </div>
                             <div className="flex gap-2">
                               <span className="inline-block bg-violet-50 text-violet-700 text-[10px] px-2 py-0.5 rounded-md font-bold border border-violet-100">接：{member.接機模式 || "未定"}</span>
-                              <span className="inline-block bg-slate-100 text-slate-600 text-[10px] px-2 py-0.5 rounded-md font-bold border border-slate-200">送：{member.送機模式 || "未定"}</span>
+                              <span className="inline-block bg-indigo-50 text-indigo-700 text-[10px] px-2 py-0.5 rounded-md font-bold border border-indigo-100">送：{member.送機模式 || "未定"}</span>
                             </div>
                           </div>
                         </div>
@@ -544,7 +577,6 @@ export default function JapanSeriesDashboardPage() {
             {/* ================= 🏨 多階段飯店排房 ================= */}
             {view === "rooms" && (
               <div className="space-y-4">
-                {/* 🌟 自動生成飯店階段切換器 */}
                 <div className="bg-slate-900 p-2 rounded-2xl flex gap-1 shadow-md sticky top-[72px] z-10 overflow-x-auto whitespace-nowrap hide-scrollbar">
                   {availableStages.map(stage => (
                     <button 
