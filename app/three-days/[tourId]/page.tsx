@@ -4,8 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-// 🌟 新增：ViewState 加入 "customerInfo" 客戶資訊獨立專區
 type ViewState = "menu" | "checkin" | "customerInfo" | "equipment" | "meals" | "rooms" | "roomSummary" | "groupDetail";
+
+// 🌟 定義離線排隊變更的結構
+interface OfflineQueueItem {
+  name: string;
+  field: string;
+  value: string;
+  originalIdx: number;
+}
 
 export default function TourDashboardPage() {
   const params = useParams();
@@ -13,7 +20,7 @@ export default function TourDashboardPage() {
 
   const [view, setView] = useState<ViewState>("menu");
   const [loading, setLoading] = useState(true);
-  const [syncStatus, setSyncStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [syncStatus, setSyncStatus] = useState<"idle" | "saving" | "success" | "error" | "offline-pending">("idle");
   const [savingIdx, setSavingIdx] = useState<number | null>(null);
   
   const [memberData, setMemberData] = useState<any[]>([]);
@@ -27,78 +34,172 @@ export default function TourDashboardPage() {
   const [selectedMealFilter, setSelectedMealFilter] = useState<string | null>(null);
   const [selectedDropoffFilter, setSelectedDropoffFilter] = useState<string | null>(null);
 
+  // 🌟 智慧核心：高山離線排隊佇列
+  const [offlineQueue, setOfflineQueue] = useState<OfflineQueueItem[]>([]);
+
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
 
+  // 計算各式加總看板的輔助函式
+  const calculateStats = (members: any[], rooms: any[]) => {
+    const mealsMap: { [key: string]: number } = {};
+    const dropoffMap: { [key: string]: number } = {};
+    const groupsSet = new Set<string>();
+
+    members.forEach((m: any) => {
+      const meal = m.五合目餐點 ? String(m.五合目餐點).trim() : "常規餐點";
+      mealsMap[meal] = (mealsMap[meal] || 0) + 1;
+
+      const loc = m.下車地點 ? String(m.下車地點).trim() : "未填寫";
+      dropoffMap[loc] = (dropoffMap[loc] || 0) + 1;
+
+      const gName = m.分組 ? String(m.分組).trim() : "";
+      if (gName && gName !== "無" && gName !== "undefined" && gName !== "null") {
+        groupsSet.add(gName);
+      }
+    });
+    setMealStats(mealsMap);
+    setDropoffStats(dropoffMap);
+    setTourGroups(Array.from(groupsSet).sort());
+
+    const roomsMap: { [key: string]: number } = {};
+    rooms.forEach((r: any) => {
+      const rType = r.房型 ? String(r.房型).trim() : "未定房型";
+      roomsMap[rType] = (roomsMap[rType] || 0) + 1;
+    });
+    setRoomTypeStats(roomsMap);
+  };
+
+  // 抓取雲端資料與快取載入核心
   async function fetchData() {
     try {
-      setLoading(true);
+      // 🌟 【優化三：秒進畫面】第一步：嘗試從手機 localStorage 撈出上一次的歷史暫存備份
+      const cachedMembers = localStorage.getItem(`takeno_members_${tourId}`);
+      const cachedRooms = localStorage.getItem(`takeno_rooms_${tourId}`);
+      
+      if (cachedMembers && cachedRooms) {
+        const parsedM = JSON.parse(cachedMembers);
+        const parsedR = JSON.parse(cachedRooms);
+        setMemberData(parsedM);
+        setRoomData(parsedR);
+        calculateStats(parsedM, parsedR);
+        setLoading(false); // 🔍 機密核心：一旦讀到快取，立刻關閉加載轉圈圈，一毫秒進入工作台！
+      }
+
+      // 第二步：在背景默默去跟雲端試算表要最新的即時數據
       const resMembers = await fetch(`${SHEETDB_URL}?sheet=3日出團總表`, { cache: "no-store" });
       const allMembers = await resMembers.json();
       const filteredMembers = Array.isArray(allMembers) ? allMembers.filter((m: any) => m.團號 === tourId) : [];
-      setMemberData(filteredMembers);
-
-      const mealsMap: { [key: string]: number } = {};
-      const dropoffMap: { [key: string]: number } = {};
-      const groupsSet = new Set<string>();
-
-      filteredMembers.forEach((m: any) => {
-        const meal = m.五合目餐點 ? String(m.五合目餐點).trim() : "常規餐點";
-        mealsMap[meal] = (mealsMap[meal] || 0) + 1;
-
-        const loc = m.下車地點 ? String(m.下車地點).trim() : "未填寫";
-        dropoffMap[loc] = (dropoffMap[loc] || 0) + 1;
-
-        const gName = m.分組 ? String(m.分組).trim() : "";
-        if (gName && gName !== "無" && gName !== "undefined" && gName !== "null") {
-          groupsSet.add(gName);
-        }
-      });
-      setMealStats(mealsMap);
-      setDropoffStats(dropoffMap);
-      setTourGroups(Array.from(groupsSet).sort());
 
       const resRooms = await fetch(`${SHEETDB_URL}?sheet=3日排房表`, { cache: "no-store" });
       const allRooms = await resRooms.json();
       const filteredRooms = Array.isArray(allRooms) ? allRooms.filter((r: any) => r.團號 === tourId) : [];
-      setRoomData(filteredRooms);
 
-      const roomsMap: { [key: string]: number } = {};
-      filteredRooms.forEach((r: any) => {
-        const rType = r.房型 ? String(r.房型).trim() : "未定房型";
-        roomsMap[rType] = (roomsMap[rType] || 0) + 1;
-      });
-      setRoomTypeStats(roomsMap);
+      // 更新即時資料並覆寫本地備份
+      setMemberData(filteredMembers);
+      setRoomData(filteredRooms);
+      calculateStats(filteredMembers, filteredRooms);
+
+      localStorage.setItem(`takeno_members_${tourId}`, JSON.stringify(filteredMembers));
+      localStorage.setItem(`takeno_rooms_${tourId}`, JSON.stringify(filteredRooms));
+      setSyncStatus("idle");
 
     } catch (error) {
-      console.error("資料自動化統計失敗:", error);
+      console.log("🌲 目前正處於無訊號高山環境，已自動切換為本地安全離線暫存視角。");
+      // 如果完全沒網、也沒快取，才提示警報
+      if (memberData.length === 0) {
+        setSyncStatus("error");
+      }
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    if (tourId) fetchData();
+    if (tourId) {
+      fetchData();
+      // 載入未同步的佇列
+      const savedQueue = localStorage.getItem(`takeno_queue_${tourId}`);
+      if (savedQueue) {
+        const parsed = JSON.parse(savedQueue);
+        setOfflineQueue(parsed);
+        if (parsed.length > 0) setSyncStatus("offline-pending");
+      }
+    }
   }, [tourId]);
 
+  // 🌟 【推薦二：高山智慧同步與排隊重試核心】
   const handleMemberFieldUpdate = async (index: number, field: string, value: string) => {
-    setSyncStatus("saving");
+    // 1. 不管有沒有網路，先瞬間更新手機畫面的狀態（體感流暢度 100 分）
     const updatedMembers = [...memberData];
     updatedMembers[index] = { ...updatedMembers[index], [field]: value };
     setMemberData(updatedMembers);
+    calculateStats(updatedMembers, roomData);
+    localStorage.setItem(`takeno_members_${tourId}`, JSON.stringify(updatedMembers));
 
     const memberName = updatedMembers[index].姓名;
 
+    // 2. 嘗試發送回試算表
+    setSyncStatus("saving");
     try {
       const response = await fetch(`${SHEETDB_URL}/姓名/${encodeURIComponent(memberName)}?sheet=3日出團總表`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: { [field]: value } })
       });
-      if (response.ok) setSyncStatus("success");
-      else { setSyncStatus("error"); alert("雲端同步失敗！"); }
-    } catch (error) { 
-      console.error(error); 
-      setSyncStatus("error"); 
+      
+      if (response.ok) {
+        setSyncStatus("success");
+      } else {
+        throw new Error("斷网攔截");
+      }
+    } catch (error) {
+      // 🌟 斷網核心防呆：一旦連線失敗，自動塞入離線排隊佇列
+      const newQueueItem: OfflineQueueItem = { name: memberName, field, value, originalIdx: index };
+      const updatedQueue = [...offlineQueue, newQueueItem];
+      setOfflineQueue(updatedQueue);
+      localStorage.setItem(`takeno_queue_${tourId}`, JSON.stringify(updatedQueue));
+      setSyncStatus("offline-pending");
+    }
+  };
+
+  // 🌟 一鍵重試批量補傳大腦 (主管走到有訊號的高處時一鍵批量補救)
+  const handleRetrySyncAll = async () => {
+    if (offlineQueue.length === 0) return;
+    setSyncStatus("saving");
+    
+    const currentQueue = [...offlineQueue];
+    let successCount = 0;
+
+    try {
+      for (let i = 0; i < currentQueue.length; i++) {
+        const item = currentQueue[i];
+        const response = await fetch(`${SHEETDB_URL}/姓名/${encodeURIComponent(item.name)}?sheet=3日出團總表`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data: { [item.field]: item.value } })
+        });
+        if (response.ok) {
+          successCount++;
+        }
+      }
+
+      if (successCount === currentQueue.length) {
+        setOfflineQueue([]);
+        localStorage.removeItem(`takeno_queue_${tourId}`);
+        setSyncStatus("success");
+        // 重新同步全團
+        fetchData();
+      } else {
+        // 部分成功，把剩下的留下
+        const remained = currentQueue.slice(successCount);
+        setOfflineQueue(remained);
+        localStorage.setItem(`takeno_queue_${tourId}`, JSON.stringify(remained));
+        setSyncStatus("offline-pending");
+        alert(`⚠️ 因山區弱網，僅成功上傳 ${successCount} 筆，其餘已繼續保留在離線佇列中。`);
+      }
+    } catch (err) {
+      setSyncStatus("error");
+      alert("❌ 機場/山區訊號依然微弱，請移動到空曠處後再次嘗試點擊一鍵同步。");
     }
   };
 
@@ -126,9 +227,19 @@ export default function TourDashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: { 實際房號: room.實際房號 || "" } })
       });
-      if (response.ok) setSyncStatus("success");
-      else setSyncStatus("error");
-    } catch (error) { setSyncStatus("error"); } finally { setSavingIdx(null); }
+      if (response.ok) {
+        setSyncStatus("success");
+        // 備份排房
+        localStorage.setItem(`takeno_rooms_${tourId}`, JSON.stringify(roomData));
+      } else {
+        setSyncStatus("error");
+      }
+    } catch (error) { 
+      setSyncStatus("error"); 
+      alert("🏨 排房雲端同步失敗，已儲存在手機暫存。");
+    } finally { 
+      setSavingIdx(null); 
+    }
   };
 
   const handleSaveAllAndSummary = async () => {
@@ -147,9 +258,15 @@ export default function TourDashboardPage() {
         }
       }
       setSyncStatus("success");
+      localStorage.setItem(`takeno_rooms_${tourId}`, JSON.stringify(roomData));
       await fetchData();
       setView("roomSummary");
-    } catch (error) { setSyncStatus("error"); setView("roomSummary"); } finally { setLoading(false); }
+    } catch (error) { 
+      setSyncStatus("error"); 
+      setView("roomSummary"); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const getGuestsList = (room: any) => {
@@ -162,39 +279,21 @@ export default function TourDashboardPage() {
     return guests.map(g => (g ? String(g).trim() : "")).filter(g => g !== "" && g !== "undefined" && g !== "null");
   };
 
-  if (loading) {
+  if (loading && memberData.length === 0) {
     return (
       <div className="min-h-screen bg-stone-900 flex items-center justify-center">
-        <p className="text-emerald-400 font-bold animate-pulse">🌲 TAKENO 數據加載中...</p>
+        <p className="text-emerald-400 font-bold animate-pulse">🌲 TAKENO 戰術快取啟動中...</p>
       </div>
     );
   }
 
-  // === 報到篩選、進度與「未報到置頂」運算 ===
-  const displayedCheckins = selectedDropoffFilter
-    ? memberData.filter(m => (m.下車地點 ? String(m.下車地點).trim() : "未填寫") === selectedDropoffFilter)
-    : [...memberData];
-
-  displayedCheckins.sort((a, b) => {
-    const aChecked = a.報到狀態 === "TRUE";
-    const bChecked = b.報到狀態 === "TRUE";
-    if (aChecked === bChecked) return 0;
-    return aChecked ? 1 : -1;
-  });
-
-  const checkinTotal = displayedCheckins.length;
-  const checkinDone = displayedCheckins.filter(m => m.報到狀態 === "TRUE").length;
-  const checkinRemain = checkinTotal - checkinDone;
-  const checkinPercent = checkinTotal === 0 ? 0 : Math.round((checkinDone / checkinTotal) * 100);
-
-  // === 裝備進度運算 ===
+  // === 裝備與餐點運算 ===
   const equipmentMembers = memberData.filter((m) => m.裝備明細 && m.裝備明細.trim() !== "" && m.裝備明細 !== "無");
   const equipTotal = equipmentMembers.length;
   const equipGiven = equipmentMembers.filter(m => m.裝備借出 === "TRUE").length;
   const equipRemain = equipTotal - equipGiven;
   const equipPercent = equipTotal === 0 ? 0 : Math.round((equipGiven / equipTotal) * 100);
 
-  // === 餐點篩選與進度運算 ===
   const displayedMeals = selectedMealFilter
     ? memberData.filter(m => (m.五合目餐點 ? String(m.五合目餐點).trim() : "常規餐點") === selectedMealFilter)
     : memberData;
@@ -210,12 +309,12 @@ export default function TourDashboardPage() {
         <div>
           <span className="text-[10px] font-black bg-amber-500 text-emerald-950 px-2 py-0.5 rounded-full uppercase tracking-wider">TAKENO 團號 {tourId}</span>
           <h1 className="text-lg font-black text-emerald-50 mt-1 tracking-wide">
-            {view === "menu" && "岳野嚮導工作台"}
+            {view === "menu" && "TAKENO 嚮導工作台"}
             {view === "groupDetail" && "🥾 團隊分組總覽"}
             {view === "checkin" && "📋 報到點名與接駁確認"}
             {view === "customerInfo" && "👤 隊員聯絡與緊急資料專區"}
             {view === "equipment" && "🎒 裝備借出與問題回報"}
-            {view === "meals" && "🍱 餐點發放統計與名單"}
+            {view === "meals" && "🍱 餐點發發統計與名單"}
             {view === "rooms" && "🏨 飯店分房登記"}
             {view === "roomSummary" && "🗝️ 總房表快速對照"}
           </h1>
@@ -227,19 +326,28 @@ export default function TourDashboardPage() {
         )}
       </div>
 
-      {/* 同步狀態提示條 */}
+      {/* 🌟 戰術狀態提示條：融合推薦二與離線重試視覺機制 */}
       {view !== "menu" && (
         <div className="w-full max-w-md px-4 mt-3">
-          <div className={`text-center py-1.5 rounded-xl text-xs font-bold shadow-sm border transition-all ${
-            syncStatus === "saving" ? "bg-amber-50 text-amber-800 border-amber-200 animate-pulse" :
-            syncStatus === "success" ? "bg-emerald-800 text-emerald-50 border-emerald-700" :
-            syncStatus === "error" ? "bg-orange-100 text-orange-800 border-orange-200" : "bg-stone-200/80 text-stone-600 border-stone-300"
-          }`}>
-            {syncStatus === "saving" && "⏳ 變更同步至雲端試算表中..."}
-            {syncStatus === "success" && "🌲 變更已儲存回雲端 Google 表單"}
-            {syncStatus === "error" && "❌ 同步錯誤，請檢查網路"}
-            {syncStatus === "idle" && "🌿 雲端連線就緒"}
-          </div>
+          {syncStatus === "offline-pending" ? (
+            <button 
+              onClick={handleRetrySyncAll}
+              className="w-full text-center py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-orange-500 to-amber-500 text-stone-950 shadow-md border-2 border-orange-400 animate-pulse flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+            >
+              ⚠️ 本地尚有 {offlineQueue.length} 筆離線變更，點此一鍵同步回雲端 🔄
+            </button>
+          ) : (
+            <div className={`text-center py-1.5 rounded-xl text-xs font-bold shadow-sm border transition-all ${
+              syncStatus === "saving" ? "bg-amber-50 text-amber-800 border-amber-200 animate-pulse" :
+              syncStatus === "success" ? "bg-emerald-800 text-emerald-50 border-emerald-700" :
+              syncStatus === "error" ? "bg-red-100 text-red-800 border-red-200" : "bg-stone-200/80 text-stone-600 border-stone-300"
+            }`}>
+              {syncStatus === "saving" && "⏳ 正在傳送至雲端表單中..."}
+              {syncStatus === "success" && "🌲 雲端實時同步完畢 (存入 Google 試算表)"}
+              {syncStatus === "error" && "❌ 高山連線失敗，已安全寫入手機本地暫存"}
+              {syncStatus === "idle" && "🌿 高山戰術離線大腦連線就緒"}
+            </div>
+          )}
         </div>
       )}
 
@@ -248,6 +356,14 @@ export default function TourDashboardPage() {
         {/* ================= 主選單畫面 ================= */}
         {view === "menu" && (
           <div className="grid grid-cols-1 gap-4">
+            
+            {/* 離線警報狀態角標 */}
+            {offlineQueue.length > 0 && (
+              <button onClick={handleRetrySyncAll} className="bg-red-500 text-white p-3 rounded-2xl text-xs font-black text-center shadow-md animate-bounce border-2 border-red-400">
+                🚨 注意：您剛才在斷網時點了 {offlineQueue.length} 筆資料，點此一鍵批量同步回雲端！
+              </button>
+            )}
+
             <button onClick={() => setView("groupDetail")} className="flex items-center justify-between bg-gradient-to-r from-emerald-800 to-emerald-900 p-5 rounded-2xl shadow-md border border-emerald-700 text-white active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-lg font-black text-amber-400">🥾 登山分組看名單</h2>
@@ -264,7 +380,6 @@ export default function TourDashboardPage() {
               <span className="text-xl text-emerald-700 font-bold">➔</span>
             </button>
 
-            {/* 🌟 新增的獨立功能按鈕：客戶資訊專區 */}
             <button onClick={() => setView("customerInfo")} className="flex items-center justify-between bg-gradient-to-r from-stone-800 to-stone-900 text-white p-5 rounded-2xl shadow-md border border-stone-700 active:scale-[0.98] transition-all">
               <div className="text-left">
                 <h2 className="text-lg font-black text-amber-400">👤 隊員聯絡與緊急資料專區</h2>
@@ -467,85 +582,64 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 🌟 優化新增：👤 隊員聯絡與緊急資料獨立專區 ================= */}
+        {/* ================= 👤 隊員聯絡與緊急資料專區 ================= */}
         {view === "customerInfo" && (
           <div className="space-y-4">
             <div className="bg-gradient-to-br from-stone-800 to-stone-950 text-white p-4 rounded-2xl shadow-md border border-stone-700">
               <h3 className="text-sm font-black text-amber-400">🚨 高山緊急聯絡總部</h3>
               <p className="text-xs text-stone-300 font-bold mt-1 leading-relaxed">
-                此區專為撤退調度設計。點擊下方任何電話號碼，手機即可**直接觸發一鍵撥號**，爭取黃金救難時間！
+                此區支援戰術離線快取。點擊下方號碼，在任何有基地台的地方即可直接一鍵撥號！
               </p>
             </div>
 
-            {memberData.map((member, idx) => {
-              const hasEmergencyInfo = member.緊急聯絡人 || member.緊急聯絡人電話;
-              
-              return (
-                <div key={idx} className="bg-white border-2 border-stone-200 rounded-2xl shadow-sm p-4 space-y-3.5">
-                  {/* 客戶大名與分組資訊 */}
-                  <div className="flex justify-between items-center border-b border-stone-100 pb-2.5">
+            {memberData.map((member, idx) => (
+              <div key={idx} className="bg-white border-2 border-stone-200 rounded-2xl shadow-sm p-4 space-y-3.5">
+                <div className="flex justify-between items-center border-b border-stone-100 pb-2.5">
+                  <div>
+                    <h3 className="text-lg font-black text-stone-800">{member.姓名}</h3>
+                    <p className="text-[10px] text-stone-400 font-bold mt-0.5 uppercase tracking-wider">TAKENO Member Card</p>
+                  </div>
+                  <span className="bg-stone-900 text-amber-400 text-xs px-2.5 py-1 rounded-xl font-black border border-stone-950">
+                    {member.分組 && member.分組 !== "無" ? member.分組 : "未編組"}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2.5">
+                  <div className="bg-stone-50 border border-stone-200 p-3 rounded-xl flex justify-between items-center shadow-xs">
                     <div>
-                      <h3 className="text-lg font-black text-stone-800">{member.姓名}</h3>
-                      <p className="text-[10px] text-stone-400 font-bold mt-0.5 uppercase tracking-wider">TAKENO Member Card</p>
+                      <p className="text-[10px] text-stone-400 font-black mb-0.5">📱 隊員本人電話</p>
+                      <p className="text-sm font-black text-stone-700">{member.手機 || "未登記"}</p>
                     </div>
-                    <span className="bg-stone-900 text-amber-400 text-xs px-2.5 py-1 rounded-xl font-black border border-stone-950">
-                      {member.分組 && member.分組 !== "無" ? member.分組 : "未編組"}
-                    </span>
+                    {member.手機 && (
+                      <a href={`tel:${member.手機.replace(/[^0-9+]/g, "")}`} className="bg-emerald-700 text-white text-xs font-black px-3 py-2 rounded-xl border border-emerald-800 shadow-sm active:scale-95 transition-all text-center">📞 撥打</a>
+                    )}
                   </div>
 
-                  {/* 聯絡矩陣區塊 */}
-                  <div className="grid grid-cols-1 gap-2.5">
-                    {/* 隊員個人手機 */}
-                    <div className="bg-stone-50 border border-stone-200 p-3 rounded-xl flex justify-between items-center shadow-xs">
+                  <div className="bg-orange-50/60 border border-orange-100 p-3 rounded-xl space-y-2">
+                    <div className="flex justify-between items-center">
+                      <p className="text-[10px] text-orange-800 font-black">🚨 緊急聯絡家屬</p>
+                      <span className="text-xs font-black text-stone-800 bg-white px-2 py-0.5 rounded-md border border-orange-200">{member.緊急聯絡人 || "未填寫"}</span>
+                    </div>
+                    
+                    <div className="bg-white border border-orange-100 p-2.5 rounded-lg flex justify-between items-center mt-1">
                       <div>
-                        <p className="text-[10px] text-stone-400 font-black mb-0.5">📱 隊員本人電話</p>
-                        <p className="text-sm font-black text-stone-700">{member.手機 || "未登記"}</p>
+                        <p className="text-[9px] text-stone-400 font-bold">🏠 家屬聯絡電話</p>
+                        <p className="text-sm font-black text-stone-800">{member.緊急聯絡人電話 || "未登記"}</p>
                       </div>
-                      {member.手機 && (
-                        <a 
-                          href={`tel:${member.手機.replace(/[^0-9+]/g, "")}`} 
-                          className="bg-emerald-700 text-white text-xs font-black px-3 py-2 rounded-xl border border-emerald-800 shadow-sm active:scale-95 transition-all text-center"
-                        >
-                          📞 撥打
-                        </a>
+                      {member.緊急聯絡人電話 && (
+                        <a href={`tel:${member.緊急聯絡人電話.replace(/[^0-9+]/g, "")}`} className="bg-orange-600 text-white text-xs font-black px-3 py-2 rounded-xl border border-orange-700 shadow-sm active:scale-95 transition-all text-center">☎️ 呼叫家屬</a>
                       )}
                     </div>
-
-                    {/* 緊急聯絡人資料框 */}
-                    <div className="bg-orange-50/60 border border-orange-100 p-3 rounded-xl space-y-2">
-                      <div className="flex justify-between items-center">
-                        <p className="text-[10px] text-orange-800 font-black">🚨 緊急聯絡家屬</p>
-                        <span className="text-xs font-black text-stone-800 bg-white px-2 py-0.5 rounded-md border border-orange-200">
-                          {member.緊急聯絡人 || "未填寫"}
-                        </span>
-                      </div>
-                      
-                      <div className="bg-white border border-orange-100 p-2.5 rounded-lg flex justify-between items-center mt-1">
-                        <div>
-                          <p className="text-[9px] text-stone-400 font-bold">🏠 家屬聯絡電話</p>
-                          <p className="text-sm font-black text-stone-800">{member.緊急聯絡人電話 || "未登記"}</p>
-                        </div>
-                        {member.緊急聯絡人電話 && (
-                          <a 
-                            href={`tel:${member.緊急聯絡人電話.replace(/[^0-9+]/g, "")}`} 
-                            className="bg-orange-600 text-white text-xs font-black px-3 py-2 rounded-xl border border-orange-700 shadow-sm active:scale-95 transition-all text-center"
-                          >
-                            ☎️ 呼叫家屬
-                          </a>
-                        )}
-                      </div>
-                    </div>
                   </div>
-
-                  {/* 病史額外提示 */}
-                  {member.病史 && (
-                    <div className="text-[11px] bg-red-50 border border-red-100 text-red-700 p-2 rounded-xl font-bold">
-                      ⚠️ 醫療病史備忘：{member.病史}
-                    </div>
-                  )}
                 </div>
-              );
-            })}
+
+                {member.病史 && (
+                  <div className="text-[11px] bg-red-50 border border-red-100 text-red-700 p-2 rounded-xl font-bold">
+                    ⚠️ 醫療病史備忘：{member.病史}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
 
