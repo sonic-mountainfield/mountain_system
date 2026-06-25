@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 
-type ViewState = "menu" | "checkin" | "equipment" | "meals" | "rooms" | "roomSummary" | "groupDetail";
+// 🌟 新增：ViewState 加入 "customerInfo" 客戶資訊獨立專區
+type ViewState = "menu" | "checkin" | "customerInfo" | "equipment" | "meals" | "rooms" | "roomSummary" | "groupDetail";
 
 export default function TourDashboardPage() {
   const params = useParams();
@@ -24,7 +25,6 @@ export default function TourDashboardPage() {
   const [roomTypeStats, setRoomTypeStats] = useState<{ [key: string]: number }>({});
 
   const [selectedMealFilter, setSelectedMealFilter] = useState<string | null>(null);
-  // 🌟 新增：用來記錄嚮導目前點擊篩選了哪一個下車地點
   const [selectedDropoffFilter, setSelectedDropoffFilter] = useState<string | null>(null);
 
   const SHEETDB_URL = "https://sheetdb.io/api/v1/ng85gs3977snc";
@@ -165,7 +165,7 @@ export default function TourDashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-stone-900 flex items-center justify-center">
-        <p className="text-emerald-400 font-bold animate-pulse">🌲 岳野系統加載中...</p>
+        <p className="text-emerald-400 font-bold animate-pulse">🌲 TAKENO 數據加載中...</p>
       </div>
     );
   }
@@ -173,9 +173,8 @@ export default function TourDashboardPage() {
   // === 報到篩選、進度與「未報到置頂」運算 ===
   const displayedCheckins = selectedDropoffFilter
     ? memberData.filter(m => (m.下車地點 ? String(m.下車地點).trim() : "未填寫") === selectedDropoffFilter)
-    : [...memberData]; // 複製一份用來排序
+    : [...memberData];
 
-  // 🌟 自動排序：未報到(FALSE/undefined)的排在最上面，已報到(TRUE)的沉到下面
   displayedCheckins.sort((a, b) => {
     const aChecked = a.報到狀態 === "TRUE";
     const bChecked = b.報到狀態 === "TRUE";
@@ -204,17 +203,17 @@ export default function TourDashboardPage() {
   const mealRemain = mealTotal - mealGiven;
   const mealPercent = mealTotal === 0 ? 0 : Math.round((mealGiven / mealTotal) * 100);
 
-
   return (
     <main className="min-h-screen bg-stone-100 flex flex-col items-center pb-12">
       {/* 頂部導覽列 */}
       <div className="w-full bg-emerald-950 text-white py-4 px-6 sticky top-0 z-10 flex items-center justify-between shadow-md border-b border-emerald-900">
         <div>
-          <span className="text-[10px] font-black bg-amber-500 text-emerald-950 px-2 py-0.5 rounded-full uppercase tracking-wider">團號 {tourId}</span>
+          <span className="text-[10px] font-black bg-amber-500 text-emerald-950 px-2 py-0.5 rounded-full uppercase tracking-wider">TAKENO 團號 {tourId}</span>
           <h1 className="text-lg font-black text-emerald-50 mt-1 tracking-wide">
             {view === "menu" && "岳野嚮導工作台"}
             {view === "groupDetail" && "🥾 團隊分組總覽"}
             {view === "checkin" && "📋 報到點名與接駁確認"}
+            {view === "customerInfo" && "👤 隊員聯絡與緊急資料專區"}
             {view === "equipment" && "🎒 裝備借出與問題回報"}
             {view === "meals" && "🍱 餐點發放統計與名單"}
             {view === "rooms" && "🏨 飯店分房登記"}
@@ -260,9 +259,18 @@ export default function TourDashboardPage() {
             <button onClick={() => setView("checkin")} className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-stone-200 active:scale-[0.98] transition-all hover:border-emerald-300">
               <div className="text-left">
                 <h2 className="text-lg font-black text-stone-800">📋 報到點名與接駁確認</h2>
-                <p className="text-xs text-stone-500 mt-1">未到人員置頂、地點快速過濾與現場備註</p>
+                <p className="text-xs text-stone-500 mt-1">未到人員置頂、地點過濾與現場工作備註</p>
               </div>
               <span className="text-xl text-emerald-700 font-bold">➔</span>
+            </button>
+
+            {/* 🌟 新增的獨立功能按鈕：客戶資訊專區 */}
+            <button onClick={() => setView("customerInfo")} className="flex items-center justify-between bg-gradient-to-r from-stone-800 to-stone-900 text-white p-5 rounded-2xl shadow-md border border-stone-700 active:scale-[0.98] transition-all">
+              <div className="text-left">
+                <h2 className="text-lg font-black text-amber-400">👤 隊員聯絡與緊急資料專區</h2>
+                <p className="text-xs text-stone-300 mt-1">高山緊急撤退調度、一鍵直接撥號與家人聯絡</p>
+              </div>
+              <span className="text-xl text-amber-400 font-bold">➔</span>
             </button>
 
             <button onClick={() => setView("equipment")} className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-stone-200 active:scale-[0.98] transition-all hover:border-emerald-300">
@@ -340,11 +348,9 @@ export default function TourDashboardPage() {
           </div>
         )}
 
-        {/* ================= 📋 報到點名與接駁確認 (🌟 新增過濾、置頂與進度條) ================= */}
+        {/* ================= 📋 報到點名與接駁確認 ================= */}
         {view === "checkin" && (
           <div className="space-y-4">
-            
-            {/* 🌟 篩選與進度看板 */}
             <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800">
               <div className="flex justify-between items-end mb-3">
                 <div>
@@ -379,7 +385,6 @@ export default function TourDashboardPage() {
                 })}
               </div>
 
-              {/* 報到進度條 */}
               <div className="bg-stone-950/40 p-3 rounded-xl border border-emerald-800/40">
                 <div className="flex justify-between items-end mb-1.5">
                   <span className="text-xs text-stone-300 font-bold">
@@ -403,7 +408,6 @@ export default function TourDashboardPage() {
               </div>
             ) : (
               displayedCheckins.map((member, _idx) => {
-                // 🌟 重要：因為清單被排序和過濾過，必須去 memberData 找回它原本的 index 才能正確存檔
                 const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
                 const isVegetarian = String(member.病史 || "").includes("素") || String(member.五合目餐點 || "").includes("素");
                 const isCheckedIn = member.報到狀態 === "TRUE";
@@ -417,7 +421,6 @@ export default function TourDashboardPage() {
                           {!isCheckedIn && <span className="text-[10px] bg-red-100 text-red-700 font-black px-1.5 py-0.5 rounded-md animate-pulse">待報到</span>}
                           {isVegetarian && <span className="text-[10px] bg-emerald-600 text-white font-black px-1.5 py-0.5 rounded-md">🥬 素食</span>}
                         </div>
-                        <p className="text-xs text-stone-500 font-medium mt-1">📱 手機：{member.手機 || "無"}</p>
                       </div>
                       <span className="bg-stone-100 text-stone-600 text-xs px-2.5 py-1 rounded-lg font-bold border border-stone-200">{member.分組 || "未編組"}</span>
                     </div>
@@ -464,10 +467,91 @@ export default function TourDashboardPage() {
           </div>
         )}
 
+        {/* ================= 🌟 優化新增：👤 隊員聯絡與緊急資料獨立專區 ================= */}
+        {view === "customerInfo" && (
+          <div className="space-y-4">
+            <div className="bg-gradient-to-br from-stone-800 to-stone-950 text-white p-4 rounded-2xl shadow-md border border-stone-700">
+              <h3 className="text-sm font-black text-amber-400">🚨 高山緊急聯絡總部</h3>
+              <p className="text-xs text-stone-300 font-bold mt-1 leading-relaxed">
+                此區專為撤退調度設計。點擊下方任何電話號碼，手機即可**直接觸發一鍵撥號**，爭取黃金救難時間！
+              </p>
+            </div>
+
+            {memberData.map((member, idx) => {
+              const hasEmergencyInfo = member.緊急聯絡人 || member.緊急聯絡人電話;
+              
+              return (
+                <div key={idx} className="bg-white border-2 border-stone-200 rounded-2xl shadow-sm p-4 space-y-3.5">
+                  {/* 客戶大名與分組資訊 */}
+                  <div className="flex justify-between items-center border-b border-stone-100 pb-2.5">
+                    <div>
+                      <h3 className="text-lg font-black text-stone-800">{member.姓名}</h3>
+                      <p className="text-[10px] text-stone-400 font-bold mt-0.5 uppercase tracking-wider">TAKENO Member Card</p>
+                    </div>
+                    <span className="bg-stone-900 text-amber-400 text-xs px-2.5 py-1 rounded-xl font-black border border-stone-950">
+                      {member.分組 && member.分組 !== "無" ? member.分組 : "未編組"}
+                    </span>
+                  </div>
+
+                  {/* 聯絡矩陣區塊 */}
+                  <div className="grid grid-cols-1 gap-2.5">
+                    {/* 隊員個人手機 */}
+                    <div className="bg-stone-50 border border-stone-200 p-3 rounded-xl flex justify-between items-center shadow-xs">
+                      <div>
+                        <p className="text-[10px] text-stone-400 font-black mb-0.5">📱 隊員本人電話</p>
+                        <p className="text-sm font-black text-stone-700">{member.手機 || "未登記"}</p>
+                      </div>
+                      {member.手機 && (
+                        <a 
+                          href={`tel:${member.手機.replace(/[^0-9+]/g, "")}`} 
+                          className="bg-emerald-700 text-white text-xs font-black px-3 py-2 rounded-xl border border-emerald-800 shadow-sm active:scale-95 transition-all text-center"
+                        >
+                          📞 撥打
+                        </a>
+                      )}
+                    </div>
+
+                    {/* 緊急聯絡人資料框 */}
+                    <div className="bg-orange-50/60 border border-orange-100 p-3 rounded-xl space-y-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-[10px] text-orange-800 font-black">🚨 緊急聯絡家屬</p>
+                        <span className="text-xs font-black text-stone-800 bg-white px-2 py-0.5 rounded-md border border-orange-200">
+                          {member.緊急聯絡人 || "未填寫"}
+                        </span>
+                      </div>
+                      
+                      <div className="bg-white border border-orange-100 p-2.5 rounded-lg flex justify-between items-center mt-1">
+                        <div>
+                          <p className="text-[9px] text-stone-400 font-bold">🏠 家屬聯絡電話</p>
+                          <p className="text-sm font-black text-stone-800">{member.緊急聯絡人電話 || "未登記"}</p>
+                        </div>
+                        {member.緊急聯絡人電話 && (
+                          <a 
+                            href={`tel:${member.緊急聯絡人電話.replace(/[^0-9+]/g, "")}`} 
+                            className="bg-orange-600 text-white text-xs font-black px-3 py-2 rounded-xl border border-orange-700 shadow-sm active:scale-95 transition-all text-center"
+                          >
+                            ☎️ 呼叫家屬
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 病史額外提示 */}
+                  {member.病史 && (
+                    <div className="text-[11px] bg-red-50 border border-red-100 text-red-700 p-2 rounded-xl font-bold">
+                      ⚠️ 醫療病史備忘：{member.病史}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {/* ================= 🎒 4. 裝備確認 ================= */}
         {view === "equipment" && (
           <div className="space-y-4">
-            
             <div className="bg-white border border-stone-200 p-4 rounded-2xl shadow-sm mb-4">
               <div className="flex justify-between items-end mb-2">
                 <div>
@@ -539,7 +623,6 @@ export default function TourDashboardPage() {
         {/* ================= 🍱 5. 登山口餐點 ================= */}
         {view === "meals" && (
           <div className="space-y-4">
-            
             <div className="bg-gradient-to-br from-emerald-900 to-stone-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800">
               <div className="flex justify-between items-end mb-3">
                 <div>
