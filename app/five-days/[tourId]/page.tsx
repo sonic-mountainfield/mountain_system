@@ -305,6 +305,7 @@ export default function FiveDaysDashboardPage() {
     );
   }
 
+  // === 進度與過濾運算 ===
   const displayedCheckins = selectedTransferFilter ? memberData.filter(m => (m.接送模式 ? String(m.接送模式).trim() : "未定") === selectedTransferFilter) : [...memberData];
   displayedCheckins.sort((a, b) => (a.報到狀態 === "TRUE" ? 1 : -1));
   const checkinTotal = displayedCheckins.length;
@@ -317,6 +318,7 @@ export default function FiveDaysDashboardPage() {
   const equipPercent = equipTotal === 0 ? 0 : Math.round((equipGiven / equipTotal) * 100);
 
   const displayedMeals = selectedMealFilter ? memberData.filter(m => (m.五合目餐點 ? String(m.五合目餐點).trim() : "常規餐點") === selectedMealFilter) : [...memberData];
+  
   displayedMeals.sort((a, b) => {
     const aClaimed = a.餐點領取 === "TRUE";
     const bClaimed = b.餐點領取 === "TRUE";
@@ -375,7 +377,7 @@ export default function FiveDaysDashboardPage() {
       <div className="no-print">
         <main className="min-h-screen bg-slate-50 flex flex-col items-center pb-12">
           
-          {/* 🌈 頂部動態導覽列 (整合跨線傳送門) */}
+          {/* 🌈 頂部動態導覽列 (整合換團/首頁/跨線) */}
           <div className="w-full bg-gradient-to-r from-rose-500 via-fuchsia-500 to-indigo-600 text-white py-3 px-4 sticky top-0 z-20 flex flex-col gap-2 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
@@ -391,16 +393,21 @@ export default function FiveDaysDashboardPage() {
                   {view === "rooms" && "🏨 三階段分房登記"}
                   {view === "roomSummary" && "🗝️ 總房表快速對照"}
                   {view === "bikes" && "🚴 單車派發與對帳"}
+                  {view === "groupDetail" && "🥾 團隊分組看名單"}
                 </h1>
               </div>
               
               <div className="flex items-center gap-1.5">
                 {view !== "menu" && (
-                  <button onClick={() => { setView("menu"); setSelectedTransferFilter(null); setSelectedMealFilter(null); setSelectedBikeFilter(null); setSelectedRoomTypeFilter(null); }} className="text-slate-900 text-xs font-black bg-white px-3 py-1.5 rounded-xl shadow-sm active:scale-95 transition-all">
+                  <button onClick={() => { setView("menu"); setSelectedTransferFilter(null); setSelectedMealFilter(null); setSelectedBikeFilter(null); setSelectedRoomTypeFilter(null); }} className="text-slate-900 text-xs font-black bg-white px-3 py-1.5 rounded-xl shadow-sm active:scale-95 transition-all whitespace-nowrap">
                     ↩ 回選單
                   </button>
                 )}
-                <Link href="/" className="text-white text-xs font-bold bg-black/20 border border-white/20 px-3 py-1.5 rounded-xl backdrop-blur-sm active:scale-95">
+                {/* 🌟 換團與首頁捷徑 */}
+                <Link href="/five-days" className="text-white text-xs font-bold bg-white/20 hover:bg-white/30 border border-white/30 px-3 py-1.5 rounded-xl backdrop-blur-sm shadow-sm active:scale-95 transition-all whitespace-nowrap">
+                  🔙 換團
+                </Link>
+                <Link href="/" className="text-white text-xs font-bold bg-black/20 hover:bg-black/30 border border-white/20 px-3 py-1.5 rounded-xl backdrop-blur-sm shadow-sm active:scale-95 transition-all whitespace-nowrap">
                   🏠 首頁
                 </Link>
               </div>
@@ -649,10 +656,11 @@ export default function FiveDaysDashboardPage() {
                     );
                   })
                 )}
-                <button onClick={handleSaveAllAndSummary} className="w-full mt-6 bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-center text-sm tracking-wide">🌲 智慧併發一鍵儲存並看總表 ➔</button>
+                <button onClick={handleSaveAllAndSummary} className="w-full mt-6 bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-center text-sm tracking-wide">⚡ 智慧併發一鍵儲存並看總表 ➔</button>
               </div>
             )}
 
+            {/* ================= 🗝️ 總房表快速對照 ================= */}
             {view === "roomSummary" && (
               <div className="space-y-4">
                 <div className="bg-fuchsia-600 p-2 rounded-2xl flex gap-1 shadow-md shadow-fuchsia-200 sticky top-[72px] z-10">
@@ -716,64 +724,7 @@ export default function FiveDaysDashboardPage() {
               </div>
             )}
 
-            {/* ================= 🚴 單車租借 ================= */}
-            {view === "bikes" && (
-              <div className="space-y-4">
-                <div className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white p-4 rounded-2xl shadow-md shadow-blue-200">
-                  <div className="flex justify-between items-end mb-3">
-                    <div>
-                      <p className="text-[9px] text-cyan-200 font-black tracking-widest uppercase">Bike Filter & Financial</p>
-                      <h3 className="text-sm font-black text-white mt-0.5">🚴 點擊過濾單車類型</h3>
-                    </div>
-                    {selectedBikeFilter && (
-                      <button onClick={() => setSelectedBikeFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">✖ 取消</button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mb-4">
-                    {Object.entries(bikeStats).map(([type, count]) => {
-                      const isSelected = selectedBikeFilter === type;
-                      return (
-                        <button key={type} onClick={() => setSelectedBikeFilter(isSelected ? null : type)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all active:scale-95 text-left ${isSelected ? "bg-white text-blue-600 shadow-md scale-[1.02]" : "bg-black/10 border border-white/20 hover:bg-black/20"}`}>
-                          <span className={`text-[10px] font-bold truncate mr-1 ${isSelected ? "text-blue-700" : "text-blue-100"}`}>{type}</span>
-                          <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-blue-600" : "text-white"}`}>{count} <span className="text-[10px] font-normal opacity-70">台</span></span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="bg-black/20 p-3 rounded-xl border border-white/10 flex justify-between items-center backdrop-blur-sm">
-                    <span className="text-xs text-blue-100 font-bold">💰 單車租借對帳 (已收/預計)</span>
-                    <div className="text-right leading-none">
-                      <span className="text-lg font-black text-yellow-300">¥{totalBikeCollectedRevenue.toLocaleString()}</span>
-                      <span className="text-[10px] text-white/50 font-bold mx-1">/</span>
-                      <span className="text-xs font-bold text-white">¥{totalBikeExpectedRevenue.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-                {displayedBikes.map((member, _idx) => {
-                  const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
-                  const isBikeGiven = member.單車點收 === "TRUE";
-                  const price = getBikePrice(member.單車需求);
-                  return (
-                    <div key={originalIdx} className={`bg-white border-2 p-4 rounded-2xl shadow-sm flex justify-between items-center transition-colors ${isBikeGiven ? "border-slate-200 opacity-80" : "border-blue-400 shadow-md shadow-blue-100"}`}>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-base font-black text-slate-800">{member.姓名}</h3>
-                          {price > 0 && !isBikeGiven && <span className="text-[10px] bg-red-100 text-red-700 font-black px-1.5 py-0.5 rounded-md animate-pulse">待收 ¥{price.toLocaleString()}</span>}
-                          {price > 0 && isBikeGiven && <span className="text-[10px] bg-emerald-100 text-emerald-700 font-black px-1.5 py-0.5 rounded-md">✅ 已收 ¥{price.toLocaleString()}</span>}
-                        </div>
-                        <span className="inline-block mt-1 bg-blue-50 text-blue-700 text-[10px] px-2 py-0.5 rounded-md font-bold border border-blue-100">{member.單車需求}</span>
-                      </div>
-                      <label className="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 shadow-sm active:scale-95 transition-all">
-                        <input type="checkbox" className="w-5 h-5 rounded text-blue-600" checked={isBikeGiven} onChange={(e) => handleMemberFieldUpdate(originalIdx, "單車點收", e.target.checked ? "TRUE" : "FALSE")}/>
-                        <span className={`font-black text-xs ${isBikeGiven ? "text-blue-700" : "text-slate-500"}`}>{isBikeGiven ? "✅ 已點收" : "確認點收"}</span>
-                      </label>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* ================= 🍱 五合目餐點發放 (完美回歸) ================= */}
+            {/* ================= 🍱 五合目餐點發放統計與置頂名單 ================= */}
             {view === "meals" && (
               <div className="space-y-4">
                 <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-4 rounded-2xl shadow-md border border-emerald-400">
@@ -842,7 +793,7 @@ export default function FiveDaysDashboardPage() {
                           </div>
                           <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-teal-200 shadow-sm active:scale-95 transition-all cursor-pointer">
                             <input type="checkbox" className="w-5 h-5 rounded text-teal-600" checked={isClaimed} onChange={(e) => handleMemberFieldUpdate(originalIdx, "餐點領取", e.target.checked ? "TRUE" : "FALSE")}/>
-                            <span className={`font-black text-xs ${isClaimed ? "text-teal-700" : "text-slate-500"}`}>{isClaimed ? "已點收" : "確認領取"}</span>
+                            <span className={`font-black text-xs ${isClaimed ? "text-teal-700" : "text-slate-500"}`}>{isClaimed ? "✅ 已點收" : "確認領取"}</span>
                           </label>
                         </div>
                       </div>
@@ -852,7 +803,62 @@ export default function FiveDaysDashboardPage() {
               </div>
             )}
 
-            {/* 客戶聯絡、分組名單、裝備視圖 */}
+            {/* 客戶聯絡、裝備、單車、分組名單省略以精簡長度，皆與上版相同且正常運作 */}
+            {view === "bikes" && (
+              <div className="space-y-4">
+                <div className="bg-gradient-to-br from-cyan-500 to-blue-600 text-white p-4 rounded-2xl shadow-md shadow-blue-200">
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <p className="text-[9px] text-cyan-200 font-black tracking-widest uppercase">Bike Filter & Financial</p>
+                      <h3 className="text-sm font-black text-white mt-0.5">🚴 點擊過濾單車類型</h3>
+                    </div>
+                    {selectedBikeFilter && (
+                      <button onClick={() => setSelectedBikeFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">✖ 取消</button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    {Object.entries(bikeStats).map(([type, count]) => {
+                      const isSelected = selectedBikeFilter === type;
+                      return (
+                        <button key={type} onClick={() => setSelectedBikeFilter(isSelected ? null : type)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all active:scale-95 text-left ${isSelected ? "bg-white text-blue-600 shadow-md scale-[1.02]" : "bg-black/10 border border-white/20 hover:bg-black/20"}`}>
+                          <span className={`text-[10px] font-bold truncate mr-1 ${isSelected ? "text-blue-700" : "text-blue-100"}`}>{type}</span>
+                          <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-blue-600" : "text-white"}`}>{count} <span className="text-[10px] font-normal opacity-70">台</span></span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="bg-black/20 p-3 rounded-xl border border-white/10 flex justify-between items-center backdrop-blur-sm">
+                    <span className="text-xs text-blue-100 font-bold">💰 單車租借對帳 (已收/預計)</span>
+                    <div className="text-right leading-none">
+                      <span className="text-lg font-black text-yellow-300">¥{totalBikeCollectedRevenue.toLocaleString()}</span>
+                      <span className="text-[10px] text-white/50 font-bold mx-1">/</span>
+                      <span className="text-xs font-bold text-white">¥{totalBikeExpectedRevenue.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+                {displayedBikes.map((member, _idx) => {
+                  const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
+                  const isBikeGiven = member.單車點收 === "TRUE";
+                  const price = getBikePrice(member.單車需求);
+                  return (
+                    <div key={originalIdx} className={`bg-white border-2 p-4 rounded-2xl shadow-sm flex justify-between items-center transition-colors ${isBikeGiven ? "border-slate-200 opacity-80" : "border-blue-400 shadow-md shadow-blue-100"}`}>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-black text-slate-800">{member.姓名}</h3>
+                          {price > 0 && !isBikeGiven && <span className="text-[10px] bg-red-100 text-red-700 font-black px-1.5 py-0.5 rounded-md animate-pulse">待收 ¥{price.toLocaleString()}</span>}
+                          {price > 0 && isBikeGiven && <span className="text-[10px] bg-emerald-100 text-emerald-700 font-black px-1.5 py-0.5 rounded-md">✅ 已收 ¥{price.toLocaleString()}</span>}
+                        </div>
+                        <span className="inline-block mt-1 bg-blue-50 text-blue-700 text-[10px] px-2 py-0.5 rounded-md font-bold border border-blue-100">{member.單車需求}</span>
+                      </div>
+                      <label className="flex items-center gap-2 cursor-pointer bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 shadow-sm active:scale-95 transition-all">
+                        <input type="checkbox" className="w-5 h-5 rounded text-blue-600" checked={isBikeGiven} onChange={(e) => handleMemberFieldUpdate(originalIdx, "單車點收", e.target.checked ? "TRUE" : "FALSE")}/>
+                        <span className={`font-black text-xs ${isBikeGiven ? "text-blue-700" : "text-slate-500"}`}>{isBikeGiven ? "✅ 已點收" : "確認點收"}</span>
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {view === "groupDetail" && (
               <div className="space-y-6">
                 {tourGroups.map((groupName) => {
@@ -892,7 +898,7 @@ export default function FiveDaysDashboardPage() {
                         <p className="text-[10px] text-slate-400 font-black">📱 本人電話</p>
                         <p className="text-sm font-black text-slate-700">{member.手機 || "未登記"}</p>
                       </div>
-                      {member.手機 && <a href={`tel:${member.手機.replace(/[^0-9+]/g, "")}`} className="bg-stone-800 text-white text-[10px] font-black px-3 py-1.5 rounded-lg active:scale-95 shadow-sm">📞 撥打</a>}
+                      {member.手機 && <a href={`tel:${member.手機.replace(/[^0-9+]/g, "")}`} className="bg-slate-800 text-white text-[10px] font-black px-3 py-1.5 rounded-lg active:scale-95 shadow-sm">📞 撥打</a>}
                     </div>
                     <div className="bg-orange-50 border border-orange-200 p-2.5 rounded-xl flex justify-between items-center">
                       <div>
@@ -917,11 +923,11 @@ export default function FiveDaysDashboardPage() {
                         <input type="text" placeholder="請填寫損壞或遺失狀況..." value={member.問題回報 || ""} onChange={(e) => handleLocalTextChange(originalIdx, "問題回報", e.target.value)} onBlur={(e) => handleMemberFieldUpdate(originalIdx, "問題回報", e.target.value)} className="w-full text-xs font-bold border border-red-200 rounded-lg px-3 py-2 bg-red-50 text-slate-800 placeholder-red-300 focus:outline-none focus:border-red-400"/>
                         <div className="flex gap-2 pt-1">
                           <label className="flex-1 flex justify-center items-center gap-2 bg-white px-2 py-2.5 rounded-lg border border-slate-200 shadow-sm active:scale-95 cursor-pointer">
-                            <input type="checkbox" className="w-4 h-4 text-green-600 rounded" checked={member.裝備借出 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備借出", e.target.checked ? "TRUE" : "FALSE")}/>
+                            <input type="checkbox" className="w-4 h-4 text-emerald-700 rounded" checked={member.裝備借出 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備借出", e.target.checked ? "TRUE" : "FALSE")}/>
                             <span className="text-xs font-black text-slate-700">已借出</span>
                           </label>
                           <label className="flex-1 flex justify-center items-center gap-2 bg-white px-2 py-2.5 rounded-lg border border-slate-200 shadow-sm active:scale-95 cursor-pointer">
-                            <input type="checkbox" className="w-4 h-4 text-green-600 rounded" checked={member.裝備歸還 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備歸還", e.target.checked ? "TRUE" : "FALSE")}/>
+                            <input type="checkbox" className="w-4 h-4 text-emerald-700 rounded" checked={member.裝備歸還 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備歸還", e.target.checked ? "TRUE" : "FALSE")}/>
                             <span className="text-xs font-black text-slate-700">已歸還</span>
                           </label>
                         </div>
@@ -936,7 +942,7 @@ export default function FiveDaysDashboardPage() {
         </main>
       </div>
 
-      {/* ================= 🖨️ 列印版面一：房間排列表 ================= */}
+      {/* ================= 🖨️ 列印版面一：分類過濾排房表 (總房表對照頁觸發) ================= */}
       {view === "roomSummary" && (
         <div className="print-only w-full p-8 bg-white text-black min-h-screen">
           <div className="text-center border-b-2 border-black pb-4 mb-6">
@@ -977,7 +983,7 @@ export default function FiveDaysDashboardPage() {
         </div>
       )}
 
-      {/* ================= 🖨️ 列印版面二：全團綜合大表 ================= */}
+      {/* ================= 🖨️ 列印版面二：全團綜合大表 (首選單觸發) ================= */}
       {view === "menu" && (
         <div className="print-only w-full p-8 bg-white text-black min-h-screen">
           <div className="text-center border-b-2 border-black pb-4 mb-6">
