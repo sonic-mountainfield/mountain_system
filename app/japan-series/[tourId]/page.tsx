@@ -340,28 +340,49 @@ export default function JapanSeriesDashboardPage() {
 
       <div className="no-print">
         <main className="min-h-screen bg-slate-50 flex flex-col items-center pb-12">
-          <div className="w-full bg-gradient-to-r from-violet-900 to-indigo-950 text-white py-4 px-6 sticky top-0 z-20 flex items-center justify-between shadow-lg border-b border-violet-800/50">
-            <div>
-              <span className="text-[10px] font-black bg-white/20 backdrop-blur-md text-violet-100 px-2 py-0.5 rounded-full uppercase tracking-wider border border-white/20">
-                TAKENO JP - {tourId}
-              </span>
-              <h1 className="text-lg font-black text-white mt-1 tracking-wide drop-shadow-md">
-                {view === "menu" && "日本系列嚮導工作台"}
-                {view === "checkin" && "✈️ 機場接送與報到"}
-                {view === "customerInfo" && "👤 隊員聯絡與飲食禁忌"}
-                {view === "rooms" && "🏨 多階段飯店排房"}
-                {view === "roomSummary" && "🗝️ 總房表快速對照"}
-              </h1>
+          
+          {/* 🌸 櫻花紫漸層頂部導覽列 (整合換團/首頁/跨線) */}
+          <div className="w-full bg-gradient-to-r from-violet-900 to-indigo-950 text-white py-3 px-4 sticky top-0 z-20 flex flex-col gap-2 shadow-lg border-b border-violet-800/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[9px] font-black bg-white/20 backdrop-blur-md text-violet-100 px-2 py-0.5 rounded-full uppercase tracking-wider border border-white/20">
+                  TAKENO JP - {tourId}
+                </span>
+                <h1 className="text-base font-black text-white mt-0.5 tracking-wide drop-shadow-md">
+                  {view === "menu" && "日本系列嚮導選單"}
+                  {view === "checkin" && "✈️ 機場接送與報到"}
+                  {view === "customerInfo" && "👤 隊員聯絡與禁忌"}
+                  {view === "rooms" && "🏨 多階段飯店排房"}
+                  {view === "roomSummary" && "🗝️ 總房表快速對照"}
+                </h1>
+              </div>
+              
+              <div className="flex items-center gap-1.5">
+                {view !== "menu" && (
+                  <button onClick={() => { setView("menu"); setSelectedPickupFilter(null); setSelectedDropoffFilter(null); setSearchQuery(""); setSelectedRoomTypeFilter(null); }} className="text-slate-900 text-xs font-black bg-white/90 hover:bg-white px-3 py-1.5 rounded-xl shadow-md backdrop-blur-sm active:scale-95 transition-all whitespace-nowrap">
+                    ↩ 回選單
+                  </button>
+                )}
+                {/* 🌟 換團與首頁捷徑 */}
+                <Link href="/japan-series" className="text-violet-100 text-xs font-black bg-black/20 hover:bg-black/30 border border-white/20 px-3 py-1.5 rounded-xl backdrop-blur-sm shadow-sm active:scale-95 transition-all whitespace-nowrap">
+                  🔙 換團
+                </Link>
+                <Link href="/" className="text-violet-100 text-xs font-bold bg-violet-900/60 hover:bg-violet-800 border border-violet-700 px-3 py-1.5 rounded-xl shadow-sm active:scale-95 transition-all whitespace-nowrap">
+                  🏠 首頁
+                </Link>
+              </div>
             </div>
-            {view === "menu" ? (
-              <Link href="/japan-series" className="text-violet-100 text-xs font-black bg-black/20 hover:bg-black/30 border border-white/20 px-4 py-2 rounded-xl active:scale-95 transition-all backdrop-blur-sm">
-                返回總表
+
+            {/* ⚡ 跨線秒切捷徑按鈕列 */}
+            <div className="flex items-center gap-2 border-t border-white/10 pt-1.5 text-xs">
+              <span className="text-[10px] font-black opacity-80 whitespace-nowrap">🧭 快速傳送:</span>
+              <Link href={`/three-days/${tourId}`} className="bg-emerald-600/90 text-white font-black px-2.5 py-1 rounded-lg border border-emerald-500/50 shadow-sm active:scale-95">
+                🌲 切换三日團
               </Link>
-            ) : (
-              <button onClick={() => { setView("menu"); setSelectedPickupFilter(null); setSelectedDropoffFilter(null); setSearchQuery(""); setSelectedRoomTypeFilter(null); }} className="text-slate-900 text-xs font-black bg-white/90 hover:bg-white px-4 py-2 rounded-xl active:scale-95 transition-all shadow-md backdrop-blur-sm">
-                ↩ 回選單
-              </button>
-            )}
+              <Link href={`/five-days/${tourId}`} className="bg-sky-700 text-white font-black px-2.5 py-1 rounded-lg border border-sky-600 shadow-sm active:scale-95">
+                🌊 切换五日團
+              </Link>
+            </div>
           </div>
 
           {view !== "menu" && (
@@ -437,6 +458,7 @@ export default function JapanSeriesDashboardPage() {
             {/* ================= ✈️ 機場接送與報到 ================= */}
             {view === "checkin" && (
               <div className="space-y-4">
+                {/* 🔍 智慧搜尋列 */}
                 <div className="bg-white border border-slate-200 p-2 rounded-2xl shadow-sm flex items-center gap-2">
                   <span className="pl-3 text-lg">🔍</span>
                   <input 
@@ -452,6 +474,7 @@ export default function JapanSeriesDashboardPage() {
                 </div>
 
                 <div className="bg-gradient-to-br from-violet-600 to-indigo-700 text-white p-4 rounded-2xl shadow-md shadow-violet-200">
+                  {/* 🛬 接機過濾器 */}
                   <div className="flex justify-between items-end mb-3">
                     <div>
                       <p className="text-[9px] text-violet-200 font-black tracking-widest uppercase">Pick-up Filter</p>
@@ -475,6 +498,7 @@ export default function JapanSeriesDashboardPage() {
 
                   <hr className="border-white/20 my-4" />
 
+                  {/* 🛫 送機過濾器 */}
                   <div className="flex justify-between items-end mb-3">
                     <div>
                       <p className="text-[9px] text-violet-200 font-black tracking-widest uppercase">Drop-off Filter</p>
@@ -740,7 +764,7 @@ export default function JapanSeriesDashboardPage() {
                   onClick={handlePrintAction} 
                   className="w-full bg-slate-800 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2 hover:bg-slate-900"
                 >
-                  🖨️ 列印 {selectedRoomTypeFilter ? `【${selectedRoomTypeFilter}】` : `【${currentStage}】`} 紙本房表
+                  🖨️ 列印 {selectedRoomTypeFilter ? `【${selectedRoomTypeFilter}】` : `【${currentStage}】`} 紙本房表 (供手寫)
                 </button>
 
                 {displayedRooms.length === 0 ? (
