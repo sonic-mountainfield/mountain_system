@@ -282,6 +282,7 @@ export default function TourDashboardPage() {
   const displayedCheckins = selectedDropoffFilter
     ? memberData.filter(m => (m.下車地點 ? String(m.下車地點).trim() : "未填寫") === selectedDropoffFilter)
     : [...memberData];
+
   displayedCheckins.sort((a, b) => (a.報到狀態 === "TRUE" ? 1 : -1));
 
   const checkinTotal = displayedCheckins.length;
@@ -296,18 +297,11 @@ export default function TourDashboardPage() {
   const equipRemain = equipTotal - equipGiven;
   const equipPercent = equipTotal === 0 ? 0 : Math.round((equipGiven / equipTotal) * 100);
 
-  // === 🍱 餐點過濾、重新導回統計與未領取置頂邏輯 ===
+  // === 餐點過濾 ===
   const displayedMeals = selectedMealFilter
     ? memberData.filter(m => (m.五合目餐點 ? String(m.五合目餐點).trim() : "常規餐點") === selectedMealFilter)
     : [...memberData];
-  
-  // 🌟 未領取者霸道置頂
-  displayedMeals.sort((a, b) => {
-    const aClaimed = a.餐點領取 === "TRUE";
-    const bClaimed = b.餐點領取 === "TRUE";
-    if (aClaimed === bClaimed) return 0;
-    return aClaimed ? 1 : -1;
-  });
+  displayedMeals.sort((a, b) => (a.餐點領取 === "TRUE" ? 1 : -1));
 
   const mealTotal = displayedMeals.length;
   const mealGiven = displayedMeals.filter(m => m.餐點領取 === "TRUE").length;
@@ -465,7 +459,7 @@ export default function TourDashboardPage() {
                     {Object.entries(dropoffStats).map(([loc, count]) => {
                       const isSelected = selectedDropoffFilter === loc;
                       return (
-                        <button key={loc} onClick={() => setSelectedDropoffFilter(isSelected ? null : loc)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all active:scale-95 text-left ${isSelected ? "bg-emerald-700 border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-lg" : "bg-stone-950/40 border border-emerald-800/40 opacity-80 hover:opacity-100"}`}>
+                        <button key={loc} onClick={() => setSelectedDropoffFilter(null)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all active:scale-95 text-left ${isSelected ? "bg-emerald-700 border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-lg" : "bg-stone-950/40 border border-emerald-800/40 opacity-80 hover:opacity-100"}`}>
                           <span className={`text-xs font-bold truncate mr-1 ${isSelected ? "text-white" : "text-stone-300"}`}>{loc}</span>
                           <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-amber-300" : "text-amber-500"}`}>{count} <span className="text-[10px] font-bold opacity-70">人</span></span>
                         </button>
@@ -477,7 +471,7 @@ export default function TourDashboardPage() {
                       <span className="text-xs text-stone-300 font-bold">{selectedDropoffFilter ? `「${selectedDropoffFilter}」報到進度` : "全團總報到進度"}</span>
                       <div className="text-right leading-none">
                         <span className="text-lg font-black text-emerald-400">{checkinDone}</span>
-                        <span className-[10px] text-stone-500 font-bold mx-1">/</span>
+                        <span className="text-[10px] text-stone-500 font-bold mx-1">/</span>
                         <span className="text-xs font-bold text-stone-400">{checkinTotal}</span>
                       </div>
                     </div>
@@ -525,101 +519,117 @@ export default function TourDashboardPage() {
               </div>
             )}
 
-            {/* ================= 👤 隊員聯絡與緊急資料專區 ================= */}
-            {view === "customerInfo" && (
+            {/* ================= 🏨 飯店分房登記 (加入房型過濾面版) ================= */}
+            {view === "rooms" && (
               <div className="space-y-4">
-                {memberData.map((member, idx) => (
-                  <div key={idx} className="bg-white border-2 border-stone-200 rounded-2xl shadow-sm p-4 space-y-3.5">
-                    <div className="flex justify-between items-center border-b border-stone-100 pb-2.5">
-                      <div>
-                        <h3 className="text-lg font-black text-stone-800">{member.姓名}</h3>
-                        <p className="text-[10px] text-stone-400 font-bold mt-0.5 uppercase tracking-wider">TAKENO Member Card</p>
-                      </div>
-                      <span className="bg-stone-900 text-amber-400 text-xs px-2.5 py-1 rounded-xl font-black border border-stone-950">{member.分組 && member.分組 !== "無" ? member.分組 : "未編組"}</span>
+                <div className="bg-gradient-to-br from-emerald-800 to-emerald-950 text-white p-4 rounded-2xl shadow-md border border-emerald-700">
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <p className="text-[9px] text-emerald-400 font-black tracking-widest uppercase">Room Type Filter</p>
+                      <h3 className="text-sm font-black text-white mt-0.5">🏨 點擊過濾房型</h3>
                     </div>
-                    <div className="grid grid-cols-1 gap-2.5">
-                      <div className="bg-stone-50 border border-stone-200 p-3 rounded-xl flex justify-between items-center shadow-xs">
-                        <div>
-                          <p className="text-[10px] text-stone-400 font-black mb-0.5">📱 隊員本人電話</p>
-                          <p className="text-sm font-black text-stone-700">{member.手機 || "未登記"}</p>
-                        </div>
-                        {member.手機 && <a href={`tel:${member.手機.replace(/[^0-9+]/g, "")}`} className="bg-emerald-700 text-white text-xs font-black px-3 py-2 rounded-xl border border-emerald-800 shadow-sm active:scale-95 transition-all text-center">📞 撥打</a>}
-                      </div>
-                      <div className="bg-orange-50/60 border border-orange-100 p-3 rounded-xl space-y-2">
-                        <div className="flex justify-between items-center">
-                          <p className="text-[10px] text-orange-800 font-black">🚨 緊急聯絡家屬</p>
-                          <span className="text-xs font-black text-stone-800 bg-white px-2 py-0.5 rounded-md border border-orange-200">{member.緊急聯絡人 || "未填寫"}</span>
-                        </div>
-                        <div className="bg-white border border-orange-100 p-2.5 rounded-lg flex justify-between items-center mt-1">
-                          <div>
-                            <p className="text-[9px] text-stone-400 font-bold">🏠 家屬聯絡電話</p>
-                            <p className="text-sm font-black text-stone-800">{member.緊急聯絡人電話 || "未登記"}</p>
-                          </div>
-                          {member.緊急聯絡人電話 && <a href={`tel:${member.緊急聯絡人電話.replace(/[^0-9+]/g, "")}`} className="bg-orange-600 text-white text-xs font-black px-3 py-2 rounded-xl border border-orange-700 shadow-sm active:scale-95 transition-all text-center">☎️ 呼叫家屬</a>}
-                        </div>
-                      </div>
-                    </div>
-                    {member.病史 && <div className="text-[11px] bg-red-50 border border-red-100 text-red-700 p-2 rounded-xl font-bold">⚠️ 醫療病史備忘：{member.病史}</div>}
+                    {selectedRoomTypeFilter && (
+                      <button onClick={() => setSelectedRoomTypeFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">✖ 取消</button>
+                    )}
                   </div>
-                ))}
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(roomTypeStats).map(([rType, count]) => {
+                      const isSelected = selectedRoomTypeFilter === rType;
+                      return (
+                        <button key={rType} onClick={() => setSelectedRoomTypeFilter(isSelected ? null : rType)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all ${isSelected ? "bg-white text-emerald-950 shadow-md scale-[1.02]" : "bg-black/10 border border-white/20 hover:bg-black/20"}`}>
+                          <span className={`text-[10px] font-bold truncate mr-1 ${isSelected ? "text-emerald-900" : "text-emerald-100"}`}>{rType}</span>
+                          <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-emerald-800" : "text-white"}`}>{count} <span className="text-[10px] font-normal">間</span></span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {displayedRooms.length === 0 ? (
+                  <div className="text-center py-10 bg-white rounded-2xl border border-stone-200">
+                    <p className="text-slate-400 text-sm font-bold">目前無符合條件的房型資料</p>
+                  </div>
+                ) : (
+                  displayedRooms.map((room) => {
+                    const originalIdx = roomData.findIndex(r => r === room);
+                    const guests = getGuestsList(room);
+                    return (
+                      <div key={originalIdx} className="bg-white border border-stone-200 p-4 rounded-2xl shadow-sm">
+                        <div className="flex justify-between items-center border-b border-stone-100 pb-3 mb-3">
+                          <div>
+                            <span className="text-[10px] bg-stone-100 text-stone-600 font-bold px-2 py-1 rounded-md border border-stone-200">入住：{room.入住日期 ? room.入住日期.substring(5) : "當日"}</span>
+                            <h3 className="text-base font-black text-stone-800 mt-2">{room.飯店名稱}</h3>
+                          </div>
+                          <span className="text-xs font-black text-emerald-800 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">{room.房型}</span>
+                        </div>
+                        <div className="bg-stone-50 p-3 rounded-xl border border-stone-200 mb-3">
+                          <p className="text-[10px] text-stone-400 font-bold mb-1">入住成員名單</p>
+                          <p className="text-sm font-black text-stone-700 tracking-wide">{guests.length > 0 ? guests.join(" 、 ") : <span className="text-slate-400 font-normal text-xs">未排定房客</span>}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-stone-700 whitespace-nowrap">分配房號：</span>
+                          <input type="text" placeholder="填寫實際房號" value={room.實際房號 || ""} onChange={(e) => handleRoomNumberChange(originalIdx, e.target.value)} className="flex-1 min-w-0 border-2 border-stone-300 rounded-xl px-3 py-2 font-black text-stone-800 focus:outline-none focus:border-emerald-600 bg-stone-50 text-sm"/>
+                          <button onClick={() => saveSingleRoomNumber(originalIdx)} disabled={savingIdx !== null} className="bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs px-3 py-2.5 rounded-xl active:scale-95 disabled:bg-stone-300 transition-all">{savingIdx === originalIdx ? "⏳" : "💾 儲存"}</button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+                <button onClick={handleSaveAllAndSummary} className="w-full mt-6 bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-center text-sm tracking-wide">🌲 智慧併發一鍵儲存並看總表 ➔</button>
               </div>
             )}
 
-            {/* ================= 🎒 裝備借出與回報 ================= */}
-            {view === "equipment" && (
-              <div className="space-y-4">
-                <div className="bg-white border border-stone-200 p-4 rounded-2xl shadow-sm mb-4">
-                  <div className="flex justify-between items-end mb-2">
+            {/* ================= 🗝️ 總房表快速對照 & 列印 ================= */}
+            {view === "roomSummary" && (
+              <div className="space-y-3">
+                <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800 mb-2">
+                  <div className="flex justify-between items-end mb-3">
                     <div>
-                      <p className="text-[10px] text-emerald-600 font-black tracking-widest uppercase">Equipment Progress</p>
-                      <h3 className="text-sm font-black text-stone-800 mt-0.5">🎒 本團裝備發放進度</h3>
+                      <p className="text-[9px] text-emerald-400 font-black tracking-widest uppercase">Room-type Automation Stats</p>
+                      <h3 className="text-sm font-black text-white mt-0.5">🏨 點擊過濾房型 (向櫃檯拿鑰匙專用)</h3>
                     </div>
-                    <div className="text-right">
-                      <span className="text-xl font-black text-emerald-700">{equipGiven}</span>
-                      <span className="text-xs text-stone-400 font-bold mx-1">/</span>
-                      <span className="text-sm font-bold text-stone-500">{equipTotal} <span className="text-[10px]">人</span></span>
-                    </div>
+                    {selectedRoomTypeFilter && (
+                      <button onClick={() => setSelectedRoomTypeFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">✖ 取消</button>
+                    )}
                   </div>
-                  <div className="w-full bg-stone-100 rounded-full h-2.5 border border-stone-200 overflow-hidden mb-1.5">
-                    <div className="bg-green-500 h-2.5 transition-all duration-500 ease-out" style={{ width: `${equipPercent}%` }}></div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {Object.entries(roomTypeStats).map(([rType, count]) => {
+                      const isSelected = selectedRoomTypeFilter === rType;
+                      return (
+                        <button key={rType} onClick={() => setSelectedRoomTypeFilter(isSelected ? null : rType)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all ${isSelected ? "bg-white text-emerald-950 shadow-md scale-[1.02]" : "bg-stone-950/40 border border-emerald-800/40"}`}>
+                          <span className={`text-xs font-bold truncate mr-1 ${isSelected ? "text-emerald-900" : "text-stone-300"}`}>{rType}</span>
+                          <span className={`text-base font-black ${isSelected ? "text-emerald-800" : "text-amber-400"}`}>{count} <span className="text-[10px] font-bold">間</span></span>
+                        </button>
+                      );
+                    })}
                   </div>
-                  <p className="text-[10px] text-stone-400 font-bold text-right">尚有 <span className="text-orange-500">{equipRemain}</span> 人未領取</p>
                 </div>
 
-                {equipmentMembers.map((member, idx) => {
-                  const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
-                  return (
-                    <div key={idx} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3 hover:border-green-300 transition-colors">
-                      <h3 className="text-base font-black text-slate-800 flex justify-between items-center">
-                        {member.姓名}
-                        <span className="text-[10px] text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-md">{member.分組 || "未編組"}</span>
-                      </h3>
-                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-3">
-                        <p className="text-sm font-black text-slate-700">{member.裝備明細}</p>
-                        
-                        <input 
-                          type="text" 
-                          placeholder="請填寫損壞或遺失狀況..." 
-                          value={member.問題回報 || ""} 
-                          onChange={(e) => handleLocalTextChange(originalIdx, "問題回報", e.target.value)} 
-                          onBlur={(e) => handleMemberFieldUpdate(originalIdx, "問題回報", e.target.value)} 
-                          className="w-full text-xs font-bold border border-red-200 rounded-lg px-3 py-2 bg-red-50 text-slate-800 placeholder-red-400/60 focus:outline-none focus:border-red-400"
-                        />
-                        
-                        <div className="flex gap-2 pt-1">
-                          <label className="flex-1 flex justify-center items-center gap-2 bg-white px-2 py-2.5 rounded-lg border border-slate-200 shadow-sm active:scale-95 cursor-pointer">
-                            <input type="checkbox" className="w-4 h-4 text-green-600 rounded" checked={member.裝備借出 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備借出", e.target.checked ? "TRUE" : "FALSE")}/>
-                            <span className="text-xs font-black text-slate-700">已借出</span>
-                          </label>
-                          <label className="flex-1 flex justify-center items-center gap-2 bg-white px-2 py-2.5 rounded-lg border border-slate-200 shadow-sm active:scale-95 cursor-pointer">
-                            <input type="checkbox" className="w-4 h-4 text-green-600 rounded" checked={member.裝備歸還 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備歸還", e.target.checked ? "TRUE" : "FALSE")}/>
-                            <span className="text-xs font-black text-slate-700">已歸還</span>
-                          </label>
+                <button onClick={handlePrintAction} className="w-full bg-slate-800 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2 hover:bg-slate-900">
+                  🖨️ 列印 {selectedRoomTypeFilter ? `【${selectedRoomTypeFilter}】` : ""} 紙本房表 (供手寫用)
+                </button>
+
+                {displayedRooms.length === 0 ? (
+                  <div className="text-center py-10 bg-white rounded-2xl border border-stone-200">
+                    <p className="text-stone-400 text-sm font-bold">目前無符合條件的房型資料</p>
+                  </div>
+                ) : (
+                  displayedRooms.map((room, idx) => {
+                    const guests = getGuestsList(room);
+                    return (
+                      <div key={idx} className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-stone-200">
+                        <div className="flex-1">
+                          <div className="text-[10px] text-stone-400 font-bold mb-1">{room.入住日期 ? room.入住日期.substring(5) : ""} | {room.飯店名稱}</div>
+                          <div className="text-sm font-black text-stone-800">{guests.length > 0 ? guests.join(" 、 ") : <span className="text-stone-400 font-normal text-xs">未排定房客</span>}</div>
+                        </div>
+                        <div className="ml-4 pl-4 border-l border-stone-200 flex flex-col items-center justify-center min-w-[70px]">
+                          <span className="text-[10px] text-stone-400 font-bold mb-0.5">房號</span>
+                          <span className={`text-xl font-black ${room.實際房號 ? "text-emerald-700" : "text-stone-300"}`}>{room.實際房號 || "未填"}</span>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             )}
 
@@ -634,7 +644,7 @@ export default function TourDashboardPage() {
                       <h3 className="text-sm font-black text-emerald-100 mt-0.5">🍱 點擊下方餐點分類可快速篩選名單</h3>
                     </div>
                     {selectedMealFilter && (
-                      <button onClick={() => setSelectedMealFilter(null)} className="text-[10px] bg-stone-700/80 hover:bg-stone-600 text-stone-200 px-2 py-1 rounded-md border border-stone-500 transition-all active:scale-95">
+                      <button onClick={() => setSelectedMealFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">
                         ✖ 取消篩選
                       </button>
                     )}
@@ -707,7 +717,7 @@ export default function TourDashboardPage() {
                             <p className="text-sm font-black text-stone-800">{member.五合目餐點 || "常規餐點"}</p>
                           </div>
                           <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-orange-200 shadow-sm active:scale-95 transition-all cursor-pointer">
-                            <input type="checkbox" className="w-5 h-5 rounded text-orange-600" checked={isClaimed} onChange={(e) => handleMemberFieldUpdate(originalIdx, "餐點領取", e.target.checked ? "TRUE" : "FALSE")}/>
+                            <input type="checkbox" className="w-5 h-5 rounded text-orange-600" checked={member.餐點領取 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "餐點領取", e.target.checked ? "TRUE" : "FALSE")}/>
                             <span className={`font-black text-xs ${isClaimed ? "text-orange-950" : "text-stone-400"}`}>{isClaimed ? "已點收" : "確認領取"}</span>
                           </label>
                         </div>
@@ -718,117 +728,117 @@ export default function TourDashboardPage() {
               </div>
             )}
 
-            {/* ================= 🏨 飯店分房登記 ================= */}
-            {view === "rooms" && (
+            {/* 客戶聯絡、分組名單、裝備視圖 */}
+            {view === "customerInfo" && (
               <div className="space-y-4">
-                <div className="bg-gradient-to-br from-emerald-800 to-emerald-950 text-white p-4 rounded-2xl shadow-md border border-emerald-700">
-                  <div className="flex justify-between items-end mb-3">
-                    <div>
-                      <p className="text-[9px] text-emerald-400 font-black tracking-widest uppercase">Room Type Filter</p>
-                      <h3 className="text-sm font-black text-white mt-0.5">🏨 點擊過濾房型</h3>
+                {memberData.map((member, idx) => (
+                  <div key={idx} className="bg-white border-2 border-stone-200 rounded-2xl shadow-sm p-4 space-y-3.5">
+                    <div className="flex justify-between items-center border-b border-stone-100 pb-2.5">
+                      <div>
+                        <h3 className="text-lg font-black text-stone-800">{member.姓名}</h3>
+                        <p className="text-[10px] text-stone-400 font-bold mt-0.5 uppercase tracking-wider">TAKENO Member Card</p>
+                      </div>
+                      <span className="bg-stone-900 text-amber-400 text-xs px-2.5 py-1 rounded-xl font-black border border-stone-950">{member.分組 && member.分組 !== "無" ? member.分組 : "未編組"}</span>
                     </div>
-                    {selectedRoomTypeFilter && (
-                      <button onClick={() => setSelectedRoomTypeFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">✖ 取消</button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(roomTypeStats).map(([rType, count]) => {
-                      const isSelected = selectedRoomTypeFilter === rType;
-                      return (
-                        <button key={rType} onClick={() => setSelectedRoomTypeFilter(isSelected ? null : rType)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all ${isSelected ? "bg-white text-emerald-950 shadow-md scale-[1.02]" : "bg-black/10 border border-white/20 hover:bg-black/20"}`}>
-                          <span className={`text-xs font-bold truncate mr-1 ${isSelected ? "text-emerald-900" : "text-emerald-100"}`}>{rType}</span>
-                          <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-emerald-800" : "text-white"}`}>{count} <span className="text-[10px] font-normal">間</span></span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {displayedRooms.length === 0 ? (
-                  <div className="text-center py-10 bg-white rounded-2xl border border-stone-200">
-                    <p className="text-stone-400 text-sm font-bold">目前無符合條件的房型資料</p>
-                  </div>
-                ) : (
-                  displayedRooms.map((room) => {
-                    const originalIdx = roomData.findIndex(r => r === room);
-                    const guests = getGuestsList(room);
-                    return (
-                      <div key={originalIdx} className="bg-white border border-stone-200 p-4 rounded-2xl shadow-sm">
-                        <div className="flex justify-between items-center border-b border-stone-100 pb-3 mb-3">
+                    <div className="grid grid-cols-1 gap-2.5">
+                      <div className="bg-stone-50 border border-stone-200 p-3 rounded-xl flex justify-between items-center shadow-xs">
+                        <div>
+                          <p className="text-[10px] text-stone-400 font-black mb-0.5">📱 隊員本人電話</p>
+                          <p className="text-sm font-black text-stone-700">{member.手機 || "未登記"}</p>
+                        </div>
+                        {member.手機 && <a href={`tel:${member.手機.replace(/[^0-9+]/g, "")}`} className="bg-emerald-700 text-white text-xs font-black px-3 py-2 rounded-xl border border-emerald-800 shadow-sm active:scale-95 transition-all text-center">📞 撥打</a>}
+                      </div>
+                      <div className="bg-orange-50/60 border border-orange-100 p-3 rounded-xl space-y-2">
+                        <div className="flex justify-between items-center">
+                          <p className="text-[10px] text-orange-800 font-black">🚨 緊急聯絡家屬</p>
+                          <span className="text-xs font-black text-stone-800 bg-white px-2 py-0.5 rounded-md border border-orange-200">{member.緊急聯絡人 || "未填寫"}</span>
+                        </div>
+                        <div className="bg-white border border-orange-100 p-2.5 rounded-lg flex justify-between items-center mt-1">
                           <div>
-                            <span className="text-[10px] bg-stone-100 text-stone-600 font-bold px-2 py-1 rounded-md border border-stone-200">入住：{room.入住日期 ? room.入住日期.substring(5) : "當日"}</span>
-                            <h3 className="text-base font-black text-stone-800 mt-2">{room.飯店名稱}</h3>
+                            <p className="text-[9px] text-stone-400 font-bold">🏠 家屬聯絡電話</p>
+                            <p className="text-sm font-black text-stone-800">{member.緊急聯絡人電話 || "未登記"}</p>
                           </div>
-                          <span className="text-xs font-black text-emerald-800 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">{room.房型}</span>
-                        </div>
-                        <div className="bg-stone-50 p-3 rounded-xl border border-stone-200 mb-3">
-                          <p className="text-[10px] text-stone-400 font-bold mb-1">入住成員名單</p>
-                          <p className="text-sm font-black text-stone-700 tracking-wide">{guests.length > 0 ? guests.join(" 、 ") : <span className="text-stone-400 font-normal text-xs">未排定房客</span>}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-black text-stone-700 whitespace-nowrap">分配房號：</span>
-                          <input type="text" placeholder="填寫實際房號" value={room.實際房號 || ""} onChange={(e) => handleRoomNumberChange(originalIdx, e.target.value)} className="flex-1 min-w-0 border-2 border-stone-300 rounded-xl px-3 py-2 font-black text-stone-800 focus:outline-none focus:border-emerald-600 bg-stone-50 text-sm"/>
-                          <button onClick={() => saveSingleRoomNumber(originalIdx)} disabled={savingIdx !== null} className="bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs px-3 py-2.5 rounded-xl active:scale-95 disabled:bg-stone-300 transition-all">{savingIdx === originalIdx ? "⏳" : "💾 儲存"}</button>
+                          {member.緊急聯絡人電話 && <a href={`tel:${member.緊急聯絡人電話.replace(/[^0-9+]/g, "")}`} className="bg-orange-600 text-white text-xs font-black px-3 py-2 rounded-xl border border-orange-700 shadow-sm active:scale-95 transition-all text-center">☎️ 呼叫家屬</a>}
                         </div>
                       </div>
-                    );
-                  })
-                )}
-                <button onClick={handleSaveAllAndSummary} className="w-full mt-6 bg-emerald-700 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-center text-sm tracking-wide">🌲 智慧併發一鍵儲存並看總表 ➔</button>
+                    </div>
+                    {member.病史 && <div className="text-[11px] bg-red-50 border border-red-100 text-red-700 p-2 rounded-xl font-bold">⚠️ 醫療病史備忘：{member.病史}</div>}
+                  </div>
+                ))}
               </div>
             )}
-
-            {/* ================= 🗝️ 總房表快速對照 ================= */}
-            {view === "roomSummary" && (
-              <div className="space-y-3">
-                <div className="bg-gradient-to-br from-emerald-900 to-slate-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800 mb-2">
-                  <div className="flex justify-between items-end mb-3">
-                    <div>
-                      <p className="text-[9px] text-emerald-400 font-black tracking-widest uppercase">Room-type Automation Stats</p>
-                      <h3 className="text-sm font-black text-white mt-0.5">🏨 點擊過濾房型 (向櫃檯拿鑰匙專用)</h3>
-                    </div>
-                    {selectedRoomTypeFilter && (
-                      <button onClick={() => setSelectedRoomTypeFilter(null)} className="text-[10px] bg-white/20 hover:bg-white/30 text-white px-2 py-1 rounded-md transition-all active:scale-95">✖ 取消</button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(roomTypeStats).map(([rType, count]) => {
-                      const isSelected = selectedRoomTypeFilter === rType;
-                      return (
-                        <button key={rType} onClick={() => setSelectedRoomTypeFilter(isSelected ? null : rType)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all ${isSelected ? "bg-white text-emerald-950 shadow-md scale-[1.02]" : "bg-stone-950/40 border border-emerald-800/40"}`}>
-                          <span className={`text-xs font-bold truncate mr-1 ${isSelected ? "text-emerald-900" : "text-stone-300"}`}>{rType}</span>
-                          <span className={`text-base font-black ${isSelected ? "text-emerald-800" : "text-amber-400"}`}>{count} <span className="text-[10px] font-bold">間</span></span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <button onClick={handlePrintAction} className="w-full bg-slate-800 text-white font-black py-4 rounded-2xl shadow-md active:scale-95 transition-all text-sm tracking-widest flex items-center justify-center gap-2 hover:bg-slate-900">
-                  🖨️ 列印 {selectedRoomTypeFilter ? `【${selectedRoomTypeFilter}】` : ""} 紙本房表 (供手寫用)
-                </button>
-
-                {displayedRooms.length === 0 ? (
-                  <div className="text-center py-10 bg-white rounded-2xl border border-stone-200">
-                    <p className="text-stone-400 text-sm font-bold">目前無符合條件的房型資料</p>
-                  </div>
-                ) : (
-                  displayedRooms.map((room, idx) => {
-                    const guests = getGuestsList(room);
-                    return (
-                      <div key={idx} className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-stone-200">
-                        <div className="flex-1">
-                          <div className="text-[10px] text-stone-400 font-bold mb-1">{room.入住日期 ? room.入住日期.substring(5) : ""} | {room.飯店名稱}</div>
-                          <div className="text-sm font-black text-stone-800">{guests.length > 0 ? guests.join(" 、 ") : <span className="text-stone-400 font-normal text-xs">未排定房客</span>}</div>
+            {view === "equipment" && (
+              <div className="space-y-4">
+                {equipmentMembers.map((member, idx) => {
+                  const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
+                  return (
+                    <div key={idx} className="bg-white border border-stone-200 p-4 rounded-2xl shadow-sm space-y-3">
+                      <div className="flex justify-between items-center border-b border-stone-100 pb-2">
+                        <h3 className="text-base font-black text-stone-800">{member.姓名}</h3>
+                        <span className="text-xs font-bold text-stone-500">{member.分組 || "未編組"}</span>
+                      </div>
+                      <div className="bg-stone-50 border border-stone-200 rounded-xl p-3 space-y-3">
+                        <div>
+                          <p className="text-[10px] text-emerald-800 font-black mb-1">🎒 租借明細</p>
+                          <p className="text-sm font-black text-stone-700">{member.裝備明細}</p>
                         </div>
-                        <div className="ml-4 pl-4 border-l border-stone-200 flex flex-col items-center justify-center min-w-[70px]">
-                          <span className="text-[10px] text-stone-400 font-bold mb-0.5">房號</span>
-                          <span className={`text-xl font-black ${room.實際房號 ? "text-emerald-700" : "text-stone-300"}`}>{room.實際房號 || "未填"}</span>
+                        <div className="border-t border-stone-200/60 pt-2">
+                          <label className="text-[10px] font-black text-red-700 block mb-1 pl-0.5">🚨 裝備損壞/尺寸不合問題回報 (離開點選自動儲存)</label>
+                          <input type="text" placeholder="例如：登山杖第三節損壞..." value={member.問題回報 || ""} onChange={(e) => handleLocalTextChange(originalIdx, "問題回報", e.target.value)} onBlur={(e) => handleMemberFieldUpdate(originalIdx, "問題回報", e.target.value)} className="w-full text-xs font-bold border-2 border-red-100 rounded-xl px-3 py-2 focus:outline-none focus:border-red-500 bg-red-50/30 text-stone-800 placeholder-red-700/40"/>
+                        </div>
+                        <div className="flex gap-2 pt-1">
+                          <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2.5 rounded-xl border border-stone-200 active:scale-95 transition-all cursor-pointer">
+                            <input type="checkbox" className="w-4 h-4 text-emerald-700 rounded" checked={member.裝備借出 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備借出", e.target.checked ? "TRUE" : "FALSE")}/>
+                            <span className="font-black text-stone-700 text-xs">已借出</span>
+                          </label>
+                          <label className="flex-1 flex justify-center items-center gap-2 bg-white px-3 py-2.5 rounded-xl border border-stone-200 active:scale-95 transition-all cursor-pointer">
+                            <input type="checkbox" className="w-4 h-4 text-emerald-700 rounded" checked={member.裝備歸還 === "TRUE"} onChange={(e) => handleMemberFieldUpdate(originalIdx, "裝備歸還", e.target.checked ? "TRUE" : "FALSE")}/>
+                            <span className="font-black text-stone-700 text-xs">已歸還</span>
+                          </label>
                         </div>
                       </div>
-                    );
-                  })
-                )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {view === "groupDetail" && (
+              <div className="space-y-6">
+                {tourGroups.map((groupName) => {
+                  const groupMembers = memberData.filter((m) => m.分組 && String(m.分組).trim() === groupName);
+                  return (
+                    <div key={groupName} className="bg-white border-2 border-emerald-800/20 rounded-2xl shadow-sm overflow-hidden">
+                      <div className="bg-gradient-to-r from-emerald-900 to-emerald-950 text-white px-4 py-3 flex justify-between items-center">
+                        <span className="text-base font-black tracking-wide">⛰️ {groupName} 名單</span>
+                        <span className="text-xs bg-amber-500 text-stone-950 font-bold px-2 py-0.5 rounded-full">共 {groupMembers.length} 人</span>
+                      </div>
+                      <div className="p-1 divide-y divide-stone-100">
+                        {groupMembers.map((member, idx) => {
+                          const isVegetarian = String(member.病史 || "").includes("素") || String(member.五合目餐點 || "").includes("素");
+                          return (
+                            <div key={idx} className="p-3 bg-white hover:bg-stone-50/50 space-y-2">
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-black text-stone-800 text-base">{member.姓名}</span>
+                                    {isVegetarian && <span className="text-[10px] bg-emerald-600 text-white font-black px-1.5 py-0.5 rounded-md">🥬 素食</span>}
+                                  </div>
+                                  <span className="text-xs text-stone-400 font-medium block mt-0.5">📱 {member.手機 || "無"}</span>
+                                </div>
+                                <span className={`text-xs font-bold px-2 py-1 rounded-md border ${member.報到狀態 === "TRUE" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-stone-50 text-stone-400 border-slate-200"}`}>{member.報到狀態 === "TRUE" ? "✅ 已報到" : "⏳ 未報到"}</span>
+                              </div>
+                              {member.備註 && (
+                                <div className="text-xs bg-stone-50 border border-stone-200 text-stone-600 p-2 rounded-xl font-medium">
+                                  📝 現場註記：{member.備註}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
