@@ -334,7 +334,7 @@ export default function TourDashboardPage() {
       <div className="no-print">
         <main className="min-h-screen bg-stone-100 flex flex-col items-center pb-12">
           
-          {/* 🌲 頂部動態導覽列 (整合跨線傳送門) */}
+          {/* 🌲 頂部動態導覽列 (新增「換團」捷徑) */}
           <div className="w-full bg-emerald-950 text-white py-3 px-4 sticky top-0 z-20 flex flex-col gap-2 shadow-md border-b border-emerald-900">
             <div className="flex items-center justify-between">
               <div>
@@ -355,11 +355,15 @@ export default function TourDashboardPage() {
               
               <div className="flex items-center gap-1.5">
                 {view !== "menu" && (
-                  <button onClick={() => { setView("menu"); setSelectedMealFilter(null); setSelectedDropoffFilter(null); setSelectedRoomTypeFilter(null); }} className="text-emerald-950 text-xs font-black bg-amber-400 px-3 py-1.5 rounded-xl shadow-sm active:scale-95 transition-all">
+                  <button onClick={() => { setView("menu"); setSelectedMealFilter(null); setSelectedDropoffFilter(null); setSelectedRoomTypeFilter(null); }} className="text-emerald-950 text-xs font-black bg-amber-400 px-3 py-1.5 rounded-xl shadow-sm active:scale-95 transition-all whitespace-nowrap">
                     ↩ 回選單
                   </button>
                 )}
-                <Link href="/" className="text-emerald-50 text-xs font-bold bg-emerald-900 border border-emerald-700 px-3 py-1.5 rounded-xl shadow-sm active:scale-95">
+                {/* 🌟 換團與首頁捷徑 */}
+                <Link href="/three-days" className="text-emerald-50 text-xs font-bold bg-emerald-700 border border-emerald-500 px-3 py-1.5 rounded-xl shadow-sm active:scale-95 whitespace-nowrap">
+                  🔙 換團
+                </Link>
+                <Link href="/" className="text-emerald-50 text-xs font-bold bg-emerald-900 border border-emerald-700 px-3 py-1.5 rounded-xl shadow-sm active:scale-95 whitespace-nowrap">
                   🏠 首頁
                 </Link>
               </div>
@@ -655,7 +659,102 @@ export default function TourDashboardPage() {
               </div>
             )}
 
-            {/* 客戶聯絡、分組名單、裝備、餐點視圖省略以精簡長度，皆與上版相同且正常運作 */}
+            {/* ================= 🍱 🌟 完整回歸：登山口餐點發放統計與置頂名單 ================= */}
+            {view === "meals" && (
+              <div className="space-y-4">
+                {/* 智慧分類統計過濾面版 */}
+                <div className="bg-gradient-to-br from-emerald-900 to-stone-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800">
+                  <div className="flex justify-between items-end mb-3">
+                    <div>
+                      <p className="text-[9px] text-emerald-400 font-black tracking-widest uppercase">Catering Filter & Stats</p>
+                      <h3 className="text-sm font-black text-emerald-100 mt-0.5">🍱 點擊下方餐點分類可快速篩選名單</h3>
+                    </div>
+                    {selectedMealFilter && (
+                      <button onClick={() => setSelectedMealFilter(null)} className="text-[10px] bg-stone-700/80 hover:bg-stone-600 text-stone-200 px-2 py-1 rounded-md border border-stone-500 transition-all active:scale-95">
+                        ✖ 取消篩選
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    {Object.entries(mealStats).map(([meal, count]) => {
+                      const isSelected = selectedMealFilter === meal;
+                      return (
+                        <button 
+                          key={meal} 
+                          onClick={() => setSelectedMealFilter(isSelected ? null : meal)}
+                          className={`p-2.5 rounded-xl flex justify-between items-center transition-all active:scale-95 text-left
+                            ${isSelected 
+                              ? "bg-emerald-700 border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-lg" 
+                              : "bg-stone-950/40 border border-emerald-800/40 opacity-80 hover:opacity-100"}`}
+                        >
+                          <span className={`text-xs font-bold truncate mr-1 ${isSelected ? "text-white" : "text-stone-300"}`}>{meal}</span>
+                          <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-amber-300" : "text-amber-500"}`}>
+                            {count} <span className="text-[10px] font-bold opacity-70">份</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* 即時配餐進度條 */}
+                  <div className="bg-stone-950/40 p-3 rounded-xl border border-emerald-800/40">
+                    <div className="flex justify-between items-end mb-1.5">
+                      <span className="text-xs text-stone-300 font-bold">
+                        {selectedMealFilter ? `「${selectedMealFilter}」發放進度` : "全團總發放進度"}
+                      </span>
+                      <div className="text-right leading-none">
+                        <span className="text-lg font-black text-emerald-400">{mealGiven}</span>
+                        <span className="text-[10px] text-stone-500 font-bold mx-1">/</span>
+                        <span className="text-xs font-bold text-stone-400">{mealTotal}</span>
+                      </div>
+                    </div>
+                    <div className="w-full bg-stone-800 rounded-full h-2">
+                      <div className={`h-2 rounded-full transition-all duration-500 ease-out ${mealRemain === 0 && mealTotal > 0 ? "bg-amber-400" : "bg-emerald-500"}`} style={{ width: `${mealPercent}%` }}></div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-stone-400 font-bold text-right mt-2">尚有 <span className="text-amber-400 font-black">{mealRemain}</span> 份餐點待點收</p>
+                </div>
+
+                {/* 隊員配餐名單卡片 (未領取者自動霸道置頂) */}
+                {displayedMeals.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-stone-400 text-sm font-bold">查無符合條件的餐點名單</p>
+                  </div>
+                ) : (
+                  displayedMeals.map((member, _idx) => {
+                    const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
+                    const isVegetarian = String(member.病史 || "").includes("素") || String(member.五合目餐點 || "").includes("素");
+                    const isClaimed = member.餐點領取 === "TRUE";
+
+                    return (
+                      <div key={originalIdx} className={`bg-white border-2 p-4 rounded-2xl shadow-sm space-y-3 transition-colors ${isClaimed ? "border-stone-200/50 opacity-80" : "border-emerald-500/50 shadow-md shadow-emerald-50"}`}>
+                        <div className="flex justify-between items-center border-b border-stone-100 pb-2 mb-3">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-base font-black text-stone-800">{member.姓名}</h3>
+                            {!isClaimed && <span className="text-[10px] bg-red-100 text-red-700 font-black px-1.5 py-0.5 rounded-md animate-pulse">待領取</span>}
+                            {isVegetarian && <span className="text-[10px] bg-emerald-600 text-white font-black px-1.5 py-0.5 rounded-md">🥬 素食</span>}
+                          </div>
+                          <span className="text-xs font-bold text-stone-500">{member.分組 || "未編組"}</span>
+                        </div>
+                        <div className="bg-orange-50/60 border border-orange-100 rounded-xl p-3 flex justify-between items-center">
+                          <div>
+                            <p className="text-[10px] text-orange-800 font-black mb-0.5">🍱 五合目餐食</p>
+                            <p className="text-sm font-black text-stone-800">{member.五合目餐點 || "常規餐點"}</p>
+                          </div>
+                          <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-orange-200 shadow-sm active:scale-95 transition-all cursor-pointer">
+                            <input type="checkbox" className="w-5 h-5 rounded text-orange-600" checked={isClaimed} onChange={(e) => handleMemberFieldUpdate(originalIdx, "餐點領取", e.target.checked ? "TRUE" : "FALSE")}/>
+                            <span className={`font-black text-xs ${isClaimed ? "text-orange-950" : "text-stone-400"}`}>{isClaimed ? "已點收" : "確認領取"}</span>
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+
+            {/* 客戶聯絡、分組名單、裝備視圖保持原樣 */}
             {view === "customerInfo" && (
               <div className="space-y-4">
                 {memberData.map((member, idx) => (
@@ -723,72 +822,6 @@ export default function TourDashboardPage() {
                             <span className="font-black text-stone-700 text-xs">已歸還</span>
                           </label>
                         </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {view === "meals" && (
-              <div className="space-y-4">
-                <div className="bg-gradient-to-br from-emerald-900 to-stone-900 text-white p-4 rounded-2xl shadow-md border border-emerald-800">
-                  <div className="flex justify-between items-end mb-3">
-                    <div>
-                      <p className="text-[9px] text-emerald-400 font-black tracking-widest uppercase">Catering Filter & Stats</p>
-                      <h3 className="text-sm font-black text-emerald-100 mt-0.5">🍱 點擊下方餐點分類可快速篩選名單</h3>
-                    </div>
-                    {selectedMealFilter && (
-                      <button onClick={() => setSelectedMealFilter(null)} className="text-[10px] bg-stone-700/80 hover:bg-stone-600 text-stone-200 px-2 py-1 rounded-md border border-stone-500 transition-all active:scale-95">✖ 取消篩選</button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mb-4">
-                    {Object.entries(mealStats).map(([meal, count]) => {
-                      const isSelected = selectedMealFilter === meal;
-                      return (
-                        <button key={meal} onClick={() => setSelectedMealFilter(isSelected ? null : meal)} className={`p-2.5 rounded-xl flex justify-between items-center transition-all active:scale-95 text-left ${isSelected ? "bg-emerald-700 border-2 border-amber-400 ring-2 ring-amber-400/30 shadow-lg" : "bg-stone-950/40 border border-emerald-800/40 opacity-80 hover:opacity-100"}`}>
-                          <span className={`text-xs font-bold truncate mr-1 ${isSelected ? "text-white" : "text-stone-300"}`}>{meal}</span>
-                          <span className={`text-base font-black whitespace-nowrap ${isSelected ? "text-amber-300" : "text-amber-500"}`}>{count} <span className="text-[10px] font-bold opacity-70">份</span></span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="bg-stone-950/40 p-3 rounded-xl border border-emerald-800/40">
-                    <div className="flex justify-between items-end mb-1.5">
-                      <span className="text-xs text-stone-300 font-bold">{selectedMealFilter ? `「${selectedMealFilter}」發放進度` : "全團總發放進度"}</span>
-                      <div className="text-right leading-none">
-                        <span className="text-lg font-black text-emerald-400">{mealGiven}</span>
-                        <span className="text-[10px] text-stone-500 font-bold mx-1">/</span>
-                        <span className="text-xs font-bold text-stone-400">{mealTotal}</span>
-                      </div>
-                    </div>
-                    <div className="w-full bg-stone-800 rounded-full h-2">
-                      <div className={`h-2 rounded-full transition-all duration-500 ease-out ${mealRemain === 0 && mealTotal > 0 ? "bg-amber-400" : "bg-emerald-500"}`} style={{ width: `${mealPercent}%` }}></div>
-                    </div>
-                  </div>
-                </div>
-                {displayedMeals.map((member, _idx) => {
-                  const originalIdx = memberData.findIndex(m => m.姓名 === member.姓名);
-                  const isVegetarian = String(member.病史 || "").includes("素") || String(member.五合目餐點 || "").includes("素");
-                  const isClaimed = member.餐點領取 === "TRUE";
-                  return (
-                    <div key={originalIdx} className={`bg-white border-2 p-4 rounded-2xl shadow-sm space-y-3 transition-colors ${isClaimed ? "border-stone-200 opacity-80" : "border-teal-400 shadow-md shadow-teal-100"}`}>
-                      <div className="flex justify-between items-center border-b border-stone-100 pb-2 mb-3">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-base font-black text-stone-800">{member.姓名}</h3>
-                          {!isClaimed && <span className="text-[10px] bg-red-100 text-red-700 font-black px-1.5 py-0.5 rounded-md animate-pulse">待領取</span>}
-                          {isVegetarian && <span className="text-[10px] bg-emerald-600 text-white font-black px-1.5 py-0.5 rounded-md">🥬 素食</span>}
-                        </div>
-                        <span className="text-xs font-bold text-stone-500">{member.分組 || "未編組"}</span>
-                      </div>
-                      <div className="bg-orange-50/60 border border-orange-100 rounded-xl p-3 flex justify-between items-center">
-                        <div>
-                          <p className="text-[10px] text-orange-800 font-black mb-0.5">🍱 五合目餐食</p>
-                          <p className="text-sm font-black text-stone-800">{member.五合目餐點 || "常規餐點"}</p>
-                        </div>
-                        <label className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-orange-200 shadow-sm active:scale-95 transition-all cursor-pointer">
-                          <input type="checkbox" className="w-5 h-5 rounded text-orange-600" checked={isClaimed} onChange={(e) => handleMemberFieldUpdate(originalIdx, "餐點領取", e.target.checked ? "TRUE" : "FALSE")}/>
-                          <span className={`font-black text-xs ${isClaimed ? "text-orange-950" : "text-stone-400"}`}>{isClaimed ? "已點收" : "確認領取"}</span>
-                        </label>
                       </div>
                     </div>
                   );
